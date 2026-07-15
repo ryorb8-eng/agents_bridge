@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local secrets (never commit)
+.env
+.env.*
+*.key
+*.pem
+secrets/
+credentials.json
+
+# playwright state (may contain session cookies — keep out of git)
+*storage-state*.json
+playwright-report/
+test-results/

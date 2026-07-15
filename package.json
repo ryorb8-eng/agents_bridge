@@ -1,0 +1,29 @@
+{
+  "name": "agents_bridge",
+  "version": "1.0.0",
+  "description": "An **AI↔AI communication bridge**. This Claude Code CLI session (the *local AI*) exchanges messages with a remote *browser AI* (ChatGPT on `chatgpt.com`, or similar) by driving the user's Chrome over the **Chrome DevTools Protocol (CDP)** via `playwright-cli`.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.61.1",
+    "turndown": "^7.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/turndown": "^5.0.6",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
+  }
+}
