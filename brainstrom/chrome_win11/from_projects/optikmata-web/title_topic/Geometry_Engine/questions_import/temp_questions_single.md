@@ -1,12 +1,8 @@
-## Q7 — Temple flag no-op + parity violation (D-6/D-7)
-`geometry_engine_temple_enabled` HANYA swap direct-generator ↔ compiled-centerline,
-keduanya panggil `generateTempleArmD()` → geometri bit-identik → toggle
-admin "Enable Temple" **tak berdampak visual** (`glassesLayout.tsx:275-276,548-570`).
-Lebih parah: temple **selalu render** (component di-push unconditional, `:794-806`),
-melanggar invariant "default OFF ⇒ byte-identik legacy" (`:200-201`).
+## Q17 — Prioritas (skor tetap 42/100)
+D-1..D-G = 14 gap. Render-fidelity (D-1/D-2/D-D/D-E) paling user-visible;
+D-A = critical-latent (tak user-visible tp bisa break saat refactor).
 
-**Q7a.** Apakah intended temple-toggle jadi no-op? Jika ya, label "LIVE" di admin
-(`geometry-engine/page.tsx:96`) = misleading — harusnya ganti label?
-**Q7b.** Bagaimana caranya beri TRUE show/hide gate (prop `showTemple` / flag
-`temple_enabled` independen dr compiler) sehingga toggle berdampak nyata TANPA
-mengubah parity legacy-path?
+**Q17a.** Urutan prioritas perbaiki spy "berbentuk kaca mata" + "live VTO nyata
+di wajah" tercapai: D-1→D-2→D-D→D-E→D-6/D-7→D-F→D-A→D-B→D-C→D-G→D-8/D-9?
+**Q17b.** Mana yg butuh keputusan Architect (UX direction / taxonomy / schema)
+vs yg bisa langsung dikerjakan coding agent dgn flag-gated parity-safe?

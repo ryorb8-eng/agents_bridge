@@ -180,3 +180,255 @@ large foundation refactor. *(Q5 / VERIFY-Q5)*
 6. Confirm the exact `glassesLayout.tsx:70-71` lines for the studio/premium depthBack +
    reflection description (Q6 claims are consistent but not cited to that exact line).
    *(Q6)*
+
+---
+
+# Pass 2 — Knowledge Bank Extension (Q7–Q17, 2026-07-16)
+
+Curated from the second brainstorm pass against `by_date/16-07-2026/`
+(`00_NEED_IMPROVE_16JULI.md`, `01_TEMPLE_HINGE.md`, `02_LIVE_VTO_FACE.md`,
+`03_EDITOR_MATERIAL_RESPONSIVE.md`, `04_QUESTIONS_FOR_BRAINSTROM.md`).
+These cover the Live VTO face-tracking path, temple/editor controls, material palette,
+responsive/perf/a11y, and the priority ordering. Verdicts:
+Q7 KEEP 88 · Q8 KEEP 88 · Q9 KEEP 90 · Q10 KEEP 85 · Q11 KEEP 88 · Q12 KEEP 85 ·
+Q13 KEEP 85 · Q14 KEEP 90 · Q15 KEEP 85 · Q16 KEEP 92 · Q17 PARTIAL 80.
+
+NOTE ON PROVENANCE: all file:line anchors below originate from the 16-07-2026 diagnosis
+materials, NOT from the live optikmata-web repo (external, not present in this workspace).
+They are accepted-as-stated by the diagnosis rather than independently confirmed. Numeric
+FX parameters proposed by the remote AI are calibration suggestions, not repo facts.
+
+## 9. Pass 2 root causes (D-6 .. D-G)
+
+- **R5 — Temple toggle is a visual no-op (D-6/D-7).** `geometry_engine_temple_enabled`
+  only swaps the generator backend (direct-generator ↔ compiled-centerline); both paths
+  call `generateTempleArmD()` → byte-identical geometry, so the admin toggle has no
+  visual effect. Worse, the temple component is pushed to the render UNCONDITIONALLY
+  (even with all GE flags OFF), violating the "default OFF ⇒ byte-identical legacy"
+  parity invariant — temple is the only part that is never dormant. The admin "LIVE" /
+  "Enable Temple" label is misleading if it only swaps the compiler backend.
+  *(Q7 / VERIFY-Q7)*
+
+- **R6 — Temple shading dead code (D-8).** `isFramePart = lens || bridge`
+  (`glassesLayout.tsx:931`) makes temple `isFramePart=false` → `applyFx=false` → the
+  7 fx-clone blocks (outline/fill/ao/bevel/reflection/depth) are skipped, while the
+  temple clone (`glassesLayout.tsx:753-759`) is still computed-but-discarded = dead
+  render path. *(Q8 / VERIFY-Q8)*
+
+- **R7 — Frame-split `partType` match fragility (D-A, CRITICAL-latent).**
+  `compiledLensPaths(compiled,'lens')` uses `.find(p=>p.partType==='lens')`, but the
+  recipe contains TWO parts with `partType:'lens'` (full lens + lens-aperture).
+  Correctness today depends solely on merge order (`ModularGlassesSVG.tsx:73` before
+  `:77`) and directly contradicts the in-code "Do NOT match by partType" warning
+  (`:293-294`). A merge-order flip is a latent break that currently passes all tests.
+  *(Q9 / VERIFY-Q9)*
+
+- **R8 — Lens FX overpaint during frame split (D-B).** At frame-ON/lens-ON,
+  `baseRawLensElement` = aperture-only (`glassesLayout.tsx:415-434`) but the lens
+  fx-clone (`:455-524`) is driven by `compiledLensD` = FULL lens → band overpaint. Root
+  cause: `compiledLensD` is reused as source/FX/visible geometry even though the three
+  diverge during frame split. *(Q10 / VERIFY-Q10)*
+
+- **R9 — No flag-combo guard (D-C).** `resolveGeometryEngineFlags` (`types.ts:343-368`)
+  treats frame/lens/bridge/temple/anchor as independent booleans with no guard preventing
+  `frame_enabled=true` + `lens_enabled=false` → triggers D-B. *(Q11 / VERIFY-Q11)*
+
+- **R10 — Live VTO nose-bridge float (D-D).** Live `/vto` anchors the frame to the
+  iris-centroid (only 2 iris centers read, `vto/page.tsx:485,493-498` → anchor at
+  `glassesLayout.tsx:808-815`), so the bridge/nosepad floats vertically on atypical
+  faces. `NOSE_TOP`/`NOSE_BOTTOM` exist for this but are dead (R2). *(Q12 / VERIFY-Q12)*
+
+- **R11 — Live VTO tracking instability (D-E).** Face lost → `ipd=0` →
+  `ModularGlassesSVG` returns null → glasses vanish then snap (`vto/page.tsx:500-508`).
+  No hold/debounce/clamp, so blink/occlusion (1-5 frames) causes flicker.
+  `adjustScale:1.20` is the live default (`ManualDesain.tsx:56`) → glasses oversize ~20%;
+  whether intentional margin or bug is UNVERIFIED. `buyerFaceSignal` (pillar-3 face-follow)
+  is collected (`vto/page.tsx:176-199,551,1138-1140`) but NOT wired to placement = dead
+  producer. *(Q13 / VERIFY-Q13)*
+
+- **R12 — GeometryEditor silent no-op controls (D-F).** Editor hidden by default
+  (dual-gate, `ManualDesain.tsx:194`). `Rotate`/`Mirror` persist to React state but the
+  renderer never consumes them (`GeometryEditor.tsx:148-169`). `Save`/`Compile`/`Clone`
+  render but are no-ops because `partProps` omits `onSave`/`onCompile`/`onClone`
+  (`ManualDesain.tsx:171-179`; invoked as `onSave?.()` in `GeometryEditor.tsx:189-217`).
+  *(Q14 / VERIFY-Q14)*
+
+- **R13 — Material palette gaps (D-G).** Material data model (schema + 8-lib
+  `FRAME_MATERIAL_LIBRARY`) is richer than renderer capability (FIXED gradient in
+  `GlassesInner.tsx:847-876`). Symptoms: `clear` `base_color:'transparent'` → frame
+  nearly invisible (`frameMaterial.ts:86-89`); `acetate`/`titanium` double-mapped
+  (legacy 3-id + new 8-lib, render differs by flag, `ManualDesain.tsx:67`); per-recipe
+  `highlight`/`ao`/`reflection` dead; flag ON → 11 double buttons (`MaterialEditor.tsx:60-126`).
+  *(Q15 / VERIFY-Q15)*
+
+- **R14 — Responsive / Perf / A11y gaps (D-8/D-9-adjacent).** SVG wrapper
+  `width:${screenWidth}px` FIXED, no `max-width` → overflow on mobile/large-IPD
+  (`ModularGlassesSVG.tsx:100,105`). Full re-compute every state-change, zero memo
+  (`useGlassesEngine`→`computeGlassesLayout` each render, `:90`). SVG has no
+  role/aria/title; editor buttons emoji-only, small low-contrast tap-targets
+  (`shared.tsx:125-136`, `text-[8px]/[9px]` on `zinc-900`). *(Q16 / VERIFY-Q16)*
+
+## 10. Pass 2 fix principles (parity-safe)
+
+- **P10 — Split temple strategy from temple visibility (R5).** Separate a geometry-
+  strategy flag (`templeGeometryStrategy` LEGACY/COMPILED, affects only the generator)
+  from an independent `showTemple` visibility flag (renderer gate `if (!showTemple) return;`).
+  Default OFF preserves byte-identical legacy parity; the toggle gains real effect.
+  Relabel admin "LIVE"/"Enable Temple" → "Temple Geometry Backend" / "Show Temple".
+  Whether the no-op is intended design is ARCHITECT-owned (open question in the diagnosis).
+  *(Q7 / VERIFY-Q7)*
+
+- **P11 — Give temple its own FX profile, not full rim (R6).** Extend `isFramePart` to
+  include `'temple'` and reuse the already-computed clone, but with a lower-intensity
+  Temple FX Profile (avoid over-shading a thin/long arm). Alternative if flat-by-design:
+  delete the dead-clone compute (`:753-759`); never keep code that is never consumed.
+  *(Q8 / VERIFY-Q8)*
+
+- **P12 — Match the full lens by `id`, not `partType` (R7).** Replace
+  `.find(p=>p.partType==='lens')` with `id==='lens'` matching (as aperture already does),
+  but ONLY if the schema guarantees id uniqueness; otherwise build an id→part registry/
+  constant + schema validation. *(Q9 / VERIFY-Q9)*
+
+- **P13 — Geometry-level fx-clone parity test (R7).** `lensBounds`-only tests are
+  insufficient: a merge-order flip can keep bounds identical (false-negative PASS) while
+  flipping the FX-clone source geometry. Add a geometry-level parity test (part id, source
+  path `d`, clone source geometry, visual regression), focused on Frame ON. *(Q9 / VERIFY-Q9)*
+
+- **P14 — Lens-local FX follows `lensApertureD` (R8).** During frame split, point all
+  lens-local FX at `lensApertureD` (aperture-only), not full `compiledLensD`, to kill
+  overpaint. Do NOT blanket-forbid Lens FX; forbid only frame-owned FX (outline/depth/AO)
+  from rendering via lens geometry and route lens-material FX (tint/reflection/glare/AR/
+  polarization) through `lensApertureD`. Longer-term: an ownership-based FX resolver
+  (lens-local→aperture, frame-local→frame, composite→composite). *(Q10 / VERIFY-Q10)*
+
+- **P15 — Fix D-B at source, not via flag guard (R8/R9).** `frame_enabled` should NOT
+  implicitly force `lens_enabled` (frame-without-lens can be a valid product state —
+  architect-owned). Prefer an explicit flag validator + documented supported-combination
+  matrix (Valid / Valid-but-unusual+warning / Unsupported+reject). After P14 fixes D-B,
+  `frame_enabled=true` + `lens_enabled=false` renders correctly, so no guard is needed
+  for correctness. A guard exists only when a combo has no semantic meaning (architect-owned).
+  *(Q11 / VERIFY-Q11)*
+
+- **P16 — Nasal landmark as vertical bridge constraint (R10).** Keep iris-centroid for
+  horizontal placement/scale/rotation (IPD, eye-line angle) but add a nasal-landmark
+  *vertical* bridge constraint so the bridge follows the nose root, not the eye midpoint.
+  Derive bridge geometry from the existing `NOSE_TOP`/`NOSE_BOTTOM` semantic anchors (via
+  Anchor Engine) rather than the renderer reading raw Face Mesh indices. Apply temporal
+  smoothing to avoid inter-frame jitter; one shared coordinate system for all semantic
+  anchors. *(Q12 / VERIFY-Q12)*
+
+- **P17 — Live VTO tracking state machine (R11).** Replace the `null`-on-face-lost with a
+  TRACKING→LOST→HOLD→TIMEOUT→HIDDEN state machine (hold last pose + debounce + confidence
+  gating) to eliminate snap/flicker. Replace hardcoded `adjustScale:1.20` with a
+  configurable measured-scale × calibration-scale parameter (profile/device-scoped,
+  documented). Give `buyerFaceSignal` explicit status: keep+mark deferred if pillar-3
+  roadmap is active (wire on implementation) or delete if cancelled. *(Q13 / VERIFY-Q13)*
+
+- **P18 — No silent no-op UI controls (R12).** Interactive controls must never be
+  clickable-but-inert. For Save/Compile/Clone: thread handlers via `partProps` when the
+  pipeline is ready, otherwise DISABLE with a visible "Not Yet Implemented / Roadmap /
+  Coming Soon" status. For Rotate/Mirror: do NOT partially wire to a standalone SVG
+  transform before an official affine/matrix primitive exists in Geometry Engine
+  (admin already marks matrix ops "roadmap / NOT YET") — Anchor/Bounds/FX/Selection/Hit-
+  test/Compilation would keep using old geometry; Mirror additionally affects winding,
+  path orientation, anchors, left/right semantics. *(Q14 / VERIFY-Q14)*
+
+- **P19 — Single canonical Material Registry (R13).** Root cause is "model richer than
+  renderer". Q15a: remove legacy `acetate`/`titanium` mapping via migration (legacy id →
+  canonical alias → remove), not a hard delete, to preserve old recipes/presets. Q15b:
+  prefer wiring the renderer to consume `FrameMaterialSpec` (highlight/AO/reflection/
+  sheen); only keep those fields if explicitly marked experimental/deferred, else simplify
+  the schema. Q15c: dedupe the grid (each material once); render `clear` as low-opacity +
+  reflection + edge-highlight and label it translucent ("Clear Acetate (Transparent)" /
+  "Crystal Clear"), not transparent/invisible. UI must only show materials the renderer can
+  actually render. *(Q15 / VERIFY-Q15)*
+
+- **P20 — Responsive wrapper + A11y are parity-safe, do now (R14).** Wrap the fixed-px
+  SVG in a container with `max-width:100%` + `preserveAspectRatio` (geometry/paths/
+  anchors/shading unchanged → render parity preserved). Expose `role="img"` + `aria-label`
+  (or `<title>`) on the SVG so screen readers name it. Editor buttons must carry
+  `aria-label`/tooltip/text + adequate tap-target size + contrast; emoji-only steppers are
+  WCAG-concerning on mobile. *(Q16 / VERIFY-Q16)*
+
+- **P21 — Targeted memoization + throttle, not "memo everywhere" (R14).** The Geometry
+  Engine is the expensive part, so memoize at the data/geometry level (Recipe → Compiled
+  Geometry → Layout → SVG) with explicit dependency arrays; `computeGlassesLayout` is a
+  strong cache candidate. For stepper (+/-) and drag inputs, throttle or batch (NOT plain
+  debounce — a stepper is discrete clicks, debounce adds lag) and always profile
+  before/after. Risk: wrong memo deps cause stale renders. *(Q16 / VERIFY-Q16)*
+
+## 11. Pass 2 priority framework (Q17, PARTIAL 80%)
+
+Verdict annotation: the remote answer's framework + Q17a reorder are KEEP; its Q17b
+classification is PARTIAL — it mislabels D-D and D-F as coding-agent work when the
+source materials explicitly mark both ARCHITECT-owned, and it omits D-9 entirely.
+
+- **Two-track model.** Prioritize on two independent axes — User Value (render fidelity)
+  vs Architectural Risk (latent break) — and run them as two parallel backlogs, not one
+  linear order. *(Q17 / VERIFY-Q17, KEEP)*
+
+- **D-A promoted to P0.** `D-A` (frame-split partType fragility) is latent-critical:
+  invisible today, but repair cost rises sharply once Geometry Engine stabilizes. Fix
+  early (P0 / Tier-B-front), before editor polish. *(Q17 / VERIFY-Q17, KEEP)*
+
+- **Visual-first order (Track A, agreed):** D-1 (bridge) → D-2 (browline) → D-D
+  (nose attach) → D-E (tracking stability) → D-8 (temple shading) → D-G (material render).
+  The first four are the most user-visible. *(Q17 / VERIFY-Q17, KEEP — order only)*
+
+- **Core-correctness track (Tier B):** D-A → D-B (FX geometry ownership) → D-C (flag
+  validation matrix) → D-3 (anchor consumer). *(Q17 / VERIFY-Q17, KEEP — grouping only)*
+
+- **CORRECTION — Architect-owned items (overrides the answer's Q17b):** per the 16-07-2026
+  sources, the following require ARCHITECT decisions (UX direction / taxonomy / schema),
+  NOT coding-agent parity-safe work:
+  - **D-D** — "Fix (architect): consume nasal landmark" (`00_NEED_IMPROVE_16JULI.md:72`;
+    `02_LIVE_VTO_FACE.md:68,73`). Not coding-agent.
+  - **D-F** — "thread handler or delete? (changing UX = architect-owned)"
+    (`00_NEED_IMPROVE_16JULI.md:107`; `03_EDITOR_MATERIAL_RESPONSIVE.md:76`,
+    "Fix (ARCHITECT-owned)"). Not coding-agent.
+  - **D-2** browline — plausibly Architect-owned (permanent visual design); cross-check
+    against 15-07 materials. *(VERIFY-Q17 open issue)*
+  - **D-A/D-B/D-C/D-3/D-G** — canonical geometry/flag/anchor/material registries = schema
+    contracts, architect-owned. *(VERIFY-Q17, KEEP)*
+
+- **OMISSION — D-9 (HINGE_RIGHT dead / symmetry risk).** The answer omits D-9. Source marks
+  it minor; placement likely Tier C / minor, validated with a live-visual check at
+  non-default bridge offset (`01_TEMPLE_HINGE.md:26-54`; fix = explicit right-temple
+  position from `HINGE_RIGHT` OR compensate `NAM` shift — architect decision). *(Q17 /
+  VERIFY-Q17, flagged gap)*
+
+- **Coding-agent parity-safe work (local, non-schema, easily tested):** FX gating (P1/P2),
+  temple shading (P11), responsive wrapper (P20), SVG a11y/aria (P20), memoization (P21),
+  dead-handler cleanup (P18), tracking debounce (P17), material grid dedupe + label
+  (P19), temple-clone dead-code cleanup (R6). *(Q17 / VERIFY-Q17, KEEP)*
+
+## 12. Open issues / unresolved (Pass 2 carry-forward)
+
+1. Whether the temple toggle no-op is intended design or oversight — requires design docs;
+   ARCHITECT-owned (R5). Also re-validate fixed right-temple hinge under `showTemple=false`
+   + `adjustNosebridgeX` offset (D-9 overlap). *(Q7)*
+2. Temple FX-Profile numeric parameters (Outline 0.4 / AO 0.15 / Reflection 0.25, etc.)
+   are the remote AI's design proposals, not repo-sourced — need real product calibration
+   (ARCHITECT-owned). Whether temple should ever be flat is undetermined. *(Q8)*
+3. Schema-uniqueness of `id` (for P12) is assumed but unverified — confirm
+   `platformConfig/types.ts` guarantees unique `id` before applying, else use the
+   registry/validation approach. *(Q9)*
+4. `compiledLensD` vs `lensApertureD` exact variable names are unverifiable here (external
+   repo). P14 assumes a correct aperture/full-lens match by `id` (D-A fix) and a safe flag
+   combo (D-C) — resolve those first. *(Q10)*
+5. The supported-combination matrix for the flag validator (P15) is undefined — ARCHITECT
+   decision (is frame-without-lens an intended state?). *(Q11)*
+6. Whether `adjustScale:1.20` is intentional vs bug (R11) and whether pillar-3/
+   `buyerFaceSignal` is active or cancelled (R11) remain DECISIONS needing design history.
+   Roll/yaw/perspective (head-turn misalignment, no z-depth) noted in the diagnosis are
+   still unaddressed by Q13. *(Q13)*
+7. Whether `handleSaveFrame`/compile/clone handlers already exist and are wired to
+   persistence decides thread-vs-disable for D-F (P18). *(Q14)*
+8. Confirm the third legacy material id name if a direct legacy removal is pursued (the
+   remote AI inferred "plastic"); and confirm Material-DNA roadmap status to decide wire-
+   vs-simplify for Q15b. *(Q15)*
+9. Confirm `computeGlassesLayout`'s actual dependency set is fully enumerable so a `useMemo`
+   there cannot go stale (requires reading `ModularGlassesSVG.tsx:90`/`useGlassesEngine` in
+   the live repo). *(Q16)*
+10. D-D and D-F reclassification into Architect-owned (§11) needs sign-off; D-9 placement +
+    D-2 ownership cross-check pending. *(Q17)*
