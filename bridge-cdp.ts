@@ -46,6 +46,10 @@ const SEND_BUTTON =
 // Tunggu generasi selesai: copy button muncul di pesan terakhir = stabil.
 const COPY_BUTTON = 'button[data-testid="copy-turn-action-button"]';
 
+// Default: tutup page + browser lalu exit 0 (biar chain otomatis lanjut).
+// Set BRIDGE_KEEP_OPEN=1 untuk biarkan terbuka (inspeksi manual).
+const KEEP_OPEN = process.env.BRIDGE_KEEP_OPEN === '1';
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
@@ -89,13 +93,31 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     process.exit(1);
   }
 
-  // Sukses: biarkan terbuka (sesuai keputusan). Untuk menutup manual:
-  // await page.close(); await browser_.close();
+  // Sukses. Default: tutup page + browser lalu exit 0 (chain lanjut otomatis).
+  // BRIDGE_KEEP_OPEN=1 -> biarkan terbuka untuk inspeksi manual.
+  if (KEEP_OPEN) {
+    console.log('[bridge] Sukses. BRIDGE_KEEP_OPEN=1 -> browser dibiarkan terbuka.');
+  } else {
+    await page.close().catch(() => {});
+    await browser_.close().catch(() => {});
+    console.log('[bridge] Sukses. Session ditutup.');
+    process.exit(0);
+  }
 })();
 
 /** Hitung jumlah balasan assistant saat ini (untuk deteksi balasan baru). */
 async function countAssistantReplies(page: Page): Promise<number> {
   return page.evaluate((sel) => document.querySelectorAll(sel).length, ASSISTANT_MSG);
+}
+
+/** Signature node terakhir (head + length) — untuk deteksi balasan baru. */
+async function lastNodeSignature(page: Page): Promise<string> {
+  return page.evaluate((sel) => {
+    const nodes = Array.from(document.querySelectorAll(sel));
+    if (nodes.length === 0) return '';
+    const last = nodes[nodes.length - 1] as HTMLElement;
+    return ((last.innerText || '').slice(0, 200)) + '|' + last.innerText.length;
+  }, ASSISTANT_MSG);
 }
 
 /**
@@ -115,6 +137,10 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
 
   const before = await countAssistantReplies(page);
   console.log(`[bridge] Balasan assistant sebelum kirim: ${before}`);
+  // Signature node terakhir SEBELUM kirim (buat deteksi balasan baru yang
+  // handal — ChatGPT bisa mengganti node terakhir, bukan nambah node baru,
+  // sehingga hitungan node tidak bisa diandalkan).
+  const beforeSig = await lastNodeSignature(page);
 
   // === PRIORITY: clipboard paste (Shift+Esc -> Ctrl+V -> Enter) ===
   let pasted = false;
@@ -152,12 +178,20 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
     console.log('[bridge] Menunggu generasi…');
   }
 
-  // Tunggu balasan baru muncul.
-  await page.waitForFunction(
-    (n) => document.querySelectorAll('div[data-message-author-role="assistant"] .markdown').length > n,
-    before,
-    { timeout: 120_000 },
-  ).catch(() => console.warn('[bridge] Timeout menunggu balasan baru — lanjut cek status.'));
+  // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
+  // (Tidak pakai hitungan node — ChatGPT bisa mengganti node terakhir.)
+  const sigChanged = await page.waitForFunction(
+    (sig) => {
+      const nodes = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] .markdown'));
+      if (nodes.length === 0) return false;
+      const last = nodes[nodes.length - 1] as HTMLElement;
+      const cur = (last.innerText || '').slice(0, 200) + '|' + last.innerText.length;
+      return cur !== sig;
+    },
+    beforeSig,
+    { timeout: 150_000 },
+  ).then(() => true).catch(() => { console.warn('[bridge] Timeout menunggu balasan baru — lanjut cek status.'); return false; });
+  console.log(`[bridge] Balasan baru terdeteksi: ${sigChanged}`);
 
   // Tunggu generasi sTABIL: copy button muncul + ukuran tidak tumbuh.
   await waitForStableReply(page);

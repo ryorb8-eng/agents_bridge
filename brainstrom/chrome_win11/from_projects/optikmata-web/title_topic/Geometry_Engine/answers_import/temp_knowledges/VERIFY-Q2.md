@@ -1,0 +1,21 @@
+# VERIFY Q2 — "Eyebrow" lines di atas lensa (alis mata)
+
+- Q: Q2a — bagaimana menyambung upper-arc kiri+kanan jadi 1 browline kontinu tanpa menggeser parity pixel lensa? (elemen baru vs sambungan path). Q2b — di `colorMode:'line'`, perlukah `outline` fx-clone di-tune per-part atau di-disable?
+- Answer seen: Q2a → jangan modifikasi path lensa yang ada; pertahankan parity lensa, lalu tambahkan elemen browline connector (Bridge/Brow Connector) sebagai komponen independen yang di-generate dari geometric/bridge anchors, BUKAN dengan merge 2 path rim. Q2b → ya, outline FX harus part-aware + mode-aware: turunkan/disable outline pada upper rim di line-mode, jangan pakai config outline global.
+- Verdict: KEEP (≥70%)
+- Confidence: 85%
+- Evidence:
+  - Premis faktual jawaban cocok dg diagnosis: outline clone offset (+2,+2)/(-2,+2), opacity .8 → `00_DIAGNOSIS_MASTER.md:75` & `02_EYEBROW_LINES.md:15-16` (CONFIRMED).
+  - Upper-arc = stroke rim double-subpath `evenodd`, strokeWidth 12 → `02_EYEBROW_LINES.md:10-11` (`ModularFrameLensaSVG.tsx:132,140`) (CONFIRMED).
+  - `colorMode:'line'` → lens `fill:'transparent'`, `page.tsx:393` → hanya stroke → upper-arc makin menonjol → `00_DIAGNOSIS_MASTER.md:101-103` & `questions_import/temp_questions_all.md:39-41` (CONFIRMED).
+  - 'preview' enable `outline:true` → selalu muncul → `00_DIAGNOSIS_MASTER.md:50` & `02_EYEBROW_LINES.md:21` (CONFIRMED).
+  - Arah fix jawaban konsisten dg diagnosis: `02_EYEBROW_LINES.md:36-39` ("Tambah elemen browline penghubung… Jgn biarkan stroke dobel terbaca alis") dan `00_DIAGNOSIS_MASTER.md:115-117` (D-2 a/b/c) (CONFIRMED, aligned).
+  - Argumen "merge path akan ubah winding/evenodd/stroke-join/bbox/mirror/parity" = reasoning SVG yang valid dan didukung sifat `evenodd` path lensa (CONFIRMED sbg reasoning intern yang sound).
+  - External refs (SVG2 Paths/Painting, Filter Effects URL) = spec umum, bukan claim file:line repo; tidak load-bearing & tidak kontradiksi → dianggap referensi standar, tidak ditandai unverifiable-berbahaya.
+  - Tidak ada claim spesifik file:line baru yg bertentangan dgn diagnosis; jawaban terutama merestruktur + merekomendasikan berdasar diagnosis yg sudah ada.
+- Claims to bank (if KEEP/PARTIAL):
+  - Browline continuity antar-mata harus dicapai via elemen "Brow Connector" terpisah (bezier/spline/arc dari bridge/top anchors), BUKAN dengan merge 2 path rim lensa, agar parity pixel lensa (winding, evenodd, stroke-join, bbox, mirror symmetry) tetap utuh.
+  - `outline` fx-clone harus part-aware DAN mode-aware: jangan pakai config outline global; di `colorMode:'line'` (lens fill transparent, hanya stroke) turunkan/disable outline pada upper-rim agar double garis (stroke + outline clone offset) tidak terbaca sebagai "alis".
+  - Di line-mode, outline clone (offset (+2,+2), opacity .8) menjadi kontributor visual utama karena base fill transparan → makin menonjol sbg eyebrow; ini akar persepsi alis pada line-mode.
+  - Brow connector sebaiknya OPSIONAL (flag-gated) karena tidak semua frame punya browline fisik; keputusan final desain tergantung apakah frame mengharuskan browline (architect-owned).
+- Open issues / follow-up Q (if any): (1) Apakah desain frame user benar-benar mengharuskan browline fisik, atau upper-arc terpisah memang disengaja (rimless)? Ini menentukan apakah connector perlu di-render default ON. (2) Perlu konfirmasi `colorMode` mana yg reproduce bug "alis" (master:101-103) untuk memvalidasi ratio fill-vs-stroke. (3) Nilai outline-opacity per-part (Rim 1.0 / Bridge 0.2 / Temple 0.6 / Lens 0 / Upper-Rim 0.3) dari jawaban adalah contoh, perlu di-tune & di-test di 3 profile (preview/studio/premium).
