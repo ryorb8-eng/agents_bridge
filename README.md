@@ -157,6 +157,19 @@ The Claude-side data dirs (`claude_questions_import/`, `claude_answers_import/`)
 **separate** from the GPT-side ones so the two remote AIs' Q/A and knowledge banks don't
 mix. Chain command: `/webchain-claude`.
 
+### Adaptive watchdog (all 6 transports)
+
+Each transport has a global watchdog so an automated chain (`/webchain-*`) can never hang:
+- `HARD_TIMEOUT_MS` (default `240_000`) — force-exit if the run doesn't finish.
+- **Adaptive extension**: if the hard timeout fires *while the remote AI is still
+  generating* (reply text still growing), it grants **one** `TIMEOUT_EXTENSION_MS`
+  (default `120_000`) extension → hard ceiling of **360s**, total. The extension is
+  granted only once; after that `extTimer` is a final kill. If the page is dead / no
+  activity, it force-exits immediately (no extension) — so a login wall or dead tab
+  still exits fast.
+- Override via env: `BRIDGE_HARD_TIMEOUT_MS`, `BRIDGE_TIMEOUT_EXTENSION_MS`,
+  `BRIDGE_ACTIVITY_GRACE_MS` (window, ms, over which "still generating" is true).
+
 ## Z transport mirror (`z/bridge-cdp-z_new.ts` + `z/bridge-cdp-z_continue.ts`)
 
 A third mirror of the transport that talks to **Z Web** (`chat.z.ai`) instead of ChatGPT

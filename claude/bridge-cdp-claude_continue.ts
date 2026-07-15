@@ -62,9 +62,59 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Global watchdog: jangan biarkan proses menggantung (mis. claude.ai login wall,
 // networkidle timeout, halaman mati). Force-exit jika lewat HARD_TIMEOUT.
 // Tanpa ini, chain otomatis (/webchain-claude) bisa stuck tanpa error.
+//
+// ADAPTIF: bila hard timeout kebentur TAPI remote AI MASIH aktif generate
+// (balasan masih tumbuh belakangan ini), beri 1x ekstensi TIMEOUT_EXTENSION_MS
+// (default 120s) — total keras = HARD + EXTENSION. Ekstensi HANYA sekali;
+// setelah itu extTimer = final kill (chain nggak bisa hang selamanya).
+// Bila halaman mati / tidak ada aktivitas → tetap force-exit (tanpa ekstensi).
 const HARD_TIMEOUT_MS = Number(process.env.BRIDGE_HARD_TIMEOUT_MS || 240_000);
-const hardTimer = nodeTimeout(() => {
-  console.error(`[bridge] WATCHDOG: lewat ${HARD_TIMEOUT_MS}ms tanpa selesai (kemungkinan halaman mati/login wall). Force-exit.`);
+const EXTENSION_MS = Number(process.env.BRIDGE_TIMEOUT_EXTENSION_MS || 120_000);
+// Jendela "masih aktif": balasan berubah dalam N ms terakhir = remote AI ngetik.
+const ACTIVITY_GRACE_MS = Number(process.env.BRIDGE_ACTIVITY_GRACE_MS || 20_000);
+
+// State module-scope (diisi setelah page ke-resolve di IIFE) — watchdog baca ini.
+let activePage: Page | undefined;
+let lastActivityTs = Date.now(); // di-update tiap kali reply masih tumbuh
+let extended = false; // ekstensi hanya boleh 1x
+let extTimer: ReturnType<typeof nodeTimeout> | undefined; // timer ekstensi (module-scope biar bisa di-clear)
+
+/** Cek remote AI masih aktif generate? (signature balasan berubah belakangan ini). */
+async function isStillGenerating(): Promise<boolean> {
+  if (!activePage) return false;
+  try {
+    const recent = await activePage.evaluate(() => {
+      // Ambil tail teks bubble assistant terakhir; pemanggil cek perubahan via ts.
+      const bubbles = Array.from(document.querySelectorAll('div[data-testid="assistant-message"]')) as HTMLElement[];
+      if (bubbles.length === 0) return '';
+      return (bubbles[bubbles.length - 1].innerText || '').slice(-400);
+    });
+    const now = Date.now();
+    if (recent !== lastSnapshot) {
+      lastSnapshot = recent;
+      lastActivityTs = now;
+      return true;
+    }
+    return (now - lastActivityTs) < ACTIVITY_GRACE_MS;
+  } catch {
+    return false; // page mati / evaluate gagal → anggap tidak aktif
+  }
+}
+let lastSnapshot = '';
+
+const hardTimer = nodeTimeout(async () => {
+  const stillGoing = await isStillGenerating().catch(() => false);
+  if (stillGoing && !extended) {
+    extended = true;
+    console.warn(`[bridge] WATCHDOG: lewat ${HARD_TIMEOUT_MS}ms TAPI remote AI masih generate — ekstensi +${EXTENSION_MS}ms (sekali).`);
+    extTimer = nodeTimeout(() => {
+      console.error(`[bridge] WATCHDOG: lewat ekstensi ${EXTENSION_MS}ms (total ${HARD_TIMEOUT_MS + EXTENSION_MS}ms) tanpa selesai. Force-exit.`);
+      process.exit(1);
+    }, EXTENSION_MS);
+    extTimer.unref();
+    return;
+  }
+  console.error(`[bridge] WATCHDOG: lewat ${HARD_TIMEOUT_MS}ms tanpa selesai (halaman mati/login wall / tidak ada aktivitas). Force-exit.`);
   process.exit(1);
 }, HARD_TIMEOUT_MS);
 hardTimer.unref(); // jangan cegah process exit normal
@@ -97,6 +147,7 @@ hardTimer.unref(); // jangan cegah process exit normal
     page = await context.newPage();
     pageOwned = true;
   }
+  activePage = page; // watchdog adaptive baca ini (untuk cek masih generate)
 
   try {
     // 2. Buka conversation spesifik (reuse tab kalau sudah terbuka).
@@ -129,6 +180,7 @@ hardTimer.unref(); // jangan cegah process exit normal
   // BRIDGE_KEEP_OPEN=1 -> biarkan terbuka untuk inspeksi manual.
   if (KEEP_OPEN) {
     clearTimeout(hardTimer); // jangan force-kill session yang sengaja dibiarkan terbuka
+    if (extTimer) clearTimeout(extTimer); // juga cancel ekstensi kalau sedang jalan
     console.log('[bridge] Sukses. BRIDGE_KEEP_OPEN=1 -> browser dibiarkan terbuka.');
   } else {
     // Tutup HANYA page yang KITA buat. Tab claude user (reuse) dibiarkan terbuka (aturan #3).
@@ -273,6 +325,7 @@ async function waitForStableReply(page: Page): Promise<void> {
       if (stableCount >= 2) return; // stabil 2 poll berturut-turut
     } else {
       stableCount = 0;
+      lastActivityTs = Date.now(); // reply masih tumbuh → sinyal masih generate (watchdog adaptive)
     }
     lastHtml = state.html;
     await sleep(1500);
