@@ -1,11 +1,11 @@
 ---
 description: >-
-  Ambil pertanyaan dari NEED_IMPROVE/by_date/<tanggal> (optikmata-web) ke dalam
-  Geometry_Engine/questions_import/by_date/<dd-mm-yy> di CWD agents_bridge.
-  Lewati file yang sudah ada nama serupa (kecuali --force). Lalu "Orchestrakan":
-  gabungkan semua pertanyaan by_date ke temp_questions_all.md dengan penomoran
-  urut, siapkan temp_questions_single.md (pertanyaan berikutnya), dan update
-  log_questions_<dd-mm-yy>.md.
+  Ambil pertanyaan dari NEED_IMPROVE/by_date/<tanggal> (optikmata-web) — otomatis pakai
+  folder tanggal TERBARU di by_date/ — ke dalam Geometry_Engine/questions_import/
+  by_date/<dd-mm-yy> di CWD agents_bridge. Lewati file yang sudah ada nama serupa
+  (kecuali --force). Lalu "Orchestrakan": gabungkan semua pertanyaan by_date ke
+  temp_questions_all.md dengan penomoran urut, siapkan temp_questions_single.md
+  (pertanyaan berikutnya), dan update log_questions_<dd-mm-yy>.md.
 ---
 
 # /takequestion — import + orkestrasi pertanyaan BRAINSTROM
@@ -15,23 +15,37 @@ di CWD, lalu rapikan ("Orchestrakan") jadi antrian pertanyaan berurutan.
 
 ## Argumen
 
-- `$ARGUMENTS` opsional: tanggal sumber `DD-MM-YYYY` (default: `15-07-2026`).
+- **Tidak ada argumen tanggal.** Sumber diambil otomatis dari folder **tanggal TERBARU**
+  di dalam `by_date/` sumber (lihat di bawah). Jangan terima/minta `DD-MM-YYYY` manual
+  — deteksi otomatis: `ls` folder `by_date/`, ambil entry tanggal yang paling baru
+  (format `DD-MM-YYYY`, bandingkan secara leksikografis karena zero-padded → urutan
+  string = urutan tanggal). Contoh: bila folder `16-07-2026` ada, `/takequestion`
+  langsung pakai `.../by_date/16-07-2026/` tanpa argumen. Ini membuat command valid
+  dijalankan "esok/lusa" untuk mengambil questions terbaru.
 - Flag `--force`: timpa file tujuan yang sudah ada nama serupanya.
 
 ## Sumber & Tujuan (CWD only)
 
 ```
-SUMBER : /home/s/TASK/optikmata-web/docs/MANUAL_PREP/BRAINSTROM/BRAINSTROM_GEOMETRY_ENGINE/NEED_IMPROVE/by_date/<tanggal>/
+SUMBER : /home/s/TASK/optikmata-web/docs/MANUAL_PREP/BRAINSTROM/BRAINSTROM_GEOMETRY_ENGINE/NEED_IMPROVE/by_date/<TERBARU>/
 TUJUAN : /home/s/TASK/agents_bridge/brainstrom/chrome_win11/from_projects/optikmata-web/title_topic/Geometry_Engine/questions_import/by_date/<dd-mm-yy>/
 ```
 
-`<dd-mm-yy>` = tanggal sumber diformat ulang (15-07-2026 → `15-07-2026`, ekstensi
-tetap). Folder tujuan dibuat bila belum ada.
+`<TERBARU>` = folder tanggal terbaru yang otomatis dideteksi dari `by_date/` sumber
+(lihat Langkah 0). `<dd-mm-yy>` = tanggal sumber tersebut dipertahankan apa adanya
+(`16-07-2026` → `16-07-2026`, ekstensi tetap). Folder tujuan dibuat bila belum ada.
 
 ## Langkah
 
-1. **Validasi sumber.** Pastikan folder sumber ada dan berisi file `.md`. Jika
-   kosong/tidak ada, STOP dan laporkan — jangan buat folder kosong.
+0. **Deteksi tanggal TERBARU (otomatis, wajib sebelum Langkah 1).** Jalankan inspeksi
+   folder sumber `by_date/` dan pilih entry dengan nama tanggal paling baru:
+   - `ls /home/s/TASK/optikmata-web/docs/MANUAL_PREP/BRAINSTROM/BRAINSTROM_GEOMETRY_ENGINE/NEED_IMPROVE/by_date/`
+   - Ambil nama folder yang merupakan tanggal `DD-MM-YYYY` terbesar (zero-padded →
+     urutkan string menaik, ambil terakhir). Itu = `<TERBARU>`.
+   - Jika `by_date/` kosong/tidak ada → STOP dan laporkan.
+
+1. **Validasi sumber.** Pastikan folder `by_date/<TERBARU>` ada dan berisi file `.md`.
+   Jika kosong/tidak ada, STOP dan laporkan — jangan buat folder kosong.
 
 2. **Copy dengan skip-similar.**
    - Untuk tiap file sumber, tentukan nama target = nama aslinya.
