@@ -9,5 +9,12 @@
     "types": ["node"],
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["gpt/bridge-cdp-gpt_new.ts", "gpt/bridge-cdp-gpt_continue.ts"]
+  "include": [
+    "gpt/bridge-cdp-gpt_new.ts",
+    "gpt/bridge-cdp-gpt_continue.ts",
+    "claude/bridge-cdp-claude_new.ts",
+    "claude/bridge-cdp-claude_continue.ts",
+    "z/bridge-cdp-z_new.ts",
+    "z/bridge-cdp-z_continue.ts"
+  ]
 }

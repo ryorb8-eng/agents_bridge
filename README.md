@@ -26,6 +26,9 @@ agents_bridge/
 ├─ AGENTS.md                      # operating system: Architect authority, PHASE 0 readiness
 ├─ CLAUDE.md                      # orientation for this session
 ├─ README.md                      # this file
+├─ gpt/                          # ChatGPT transport (bridge-cdp-gpt_new.ts / _continue.ts)
+├─ claude/                       # Claude mirror transport (bridge-cdp-claude_new.ts / _continue.ts)
+├─ z/                            # Z mirror transport (bridge-cdp-z_new.ts / _continue.ts)
 ├─ docs/
 │  ├─ ARCHITECTURE.md             # bridge topology, message contract, trust model
 │  ├─ adr/                        # architecture decision records (index + template)
@@ -33,7 +36,7 @@ agents_bridge/
 └─ .claude/
    ├─ skills/                     # skills (see table below)
    ├─ agents/                     # bridge-operator, tester, researcher, architect
-   └─ commands/                   # slash commands: /bridge /research /brainstorm /plan /design /adr
+   └─ commands/                   # slash commands: /bridge /research /brainstorm /plan /design /adr /webchain-gpt /webchain-claude /webchain-z
 ```
 
 ## Skills
@@ -50,6 +53,8 @@ agents_bridge/
 | `agent-architecture-audit` | ecc | Audit the 12-layer agent stack for regression/corruption. |
 | `knowledge-ops` | ecc | Multi-layer knowledge capture/sync. |
 | `web-dom-chatgpt` | new (user-taught) | **MANDATORY** ChatGPT web UI DOM rules — composer, send, scrape, scroll, vision. Auto-updates on DOM drift. |
+| `web-dom-claude` | new (mirror of web-dom-chatgpt) | **MANDATORY** Claude Web UI DOM rules — focus trick (`r`+Backspace), send, scrape. BEST-EFFORT selectors (not live-validated yet). |
+| `web-dom-z` | new (mirror of web-dom-claude) | **MANDATORY** Z Web UI DOM rules — click `#chat-input` + paste (no focus shortcut), send, scrape. LIVE-VERIFIED selectors (2026-07-16). |
 
 ## Quick start (operate the bridge)
 
@@ -120,6 +125,72 @@ BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx gp
 - Turndown conversion is **commented out** for now (raw HTML is printed).
 - DOM rules for composing/sending/scraping: `.claude/skills/web-dom-chatgpt/SKILL.md`
   (see §1b for the new/continue split).
+
+## Claude transport mirror (`claude/bridge-cdp-claude_new.ts` + `claude/bridge-cdp-claude_continue.ts`)
+
+A parallel mirror of the GPT transport that talks to **Claude Web** (`claude.ai`)
+instead of ChatGPT. Same shapes, same security model (ADR-0004), **but the focus method
+is different**: Claude auto-moves focus to the composer when you type, so the send path
+presses `r` → sleep 0.5s → `Backspace` → sleep 0.5s → paste (see `web-dom-claude` §1).
+Selectors are **BEST-EFFORT** (claude.ai has not been driven live yet) — re-verify before
+first critical send.
+
+| File | Default target | Use for |
+|---|---|---|
+| `claude/bridge-cdp-claude_new.ts` | `https://claude.ai/new` | new brainstorm / task, Vision ("mata"), one-off ask |
+| `claude/bridge-cdp-claude_continue.ts` | `https://claude.ai/chat/5d629ba7-c267-4331-be73-e8df83025291` | continue an existing chain (`/webchain-claude`) |
+
+Run (same env contract as GPT; `BRIDGE_PROMPT` is the only send source):
+
+```bash
+# READ mode (default): read the last assistant reply
+npx tsx claude/<file>.ts
+
+# SEND mode (bidirectional): focus trick + paste prompt from env, wait, read reply
+BRIDGE_MODE=send BRIDGE_PROMPT="your question here" npx tsx claude/<file>.ts
+
+# override endpoint/conversation:
+BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://claude.ai/chat/... npx tsx claude/<file>.ts
+```
+
+The Claude-side data dirs (`claude_questions_import/`, `claude_answers_import/`) are kept
+**separate** from the GPT-side ones so the two remote AIs' Q/A and knowledge banks don't
+mix. Chain command: `/webchain-claude`.
+
+## Z transport mirror (`z/bridge-cdp-z_new.ts` + `z/bridge-cdp-z_continue.ts`)
+
+A third mirror of the transport that talks to **Z Web** (`chat.z.ai`) instead of ChatGPT
+or Claude. Same shapes, same security model (ADR-0004), **but z.ai has NO focus shortcut** —
+the composer is a real `<textarea id="chat-input">`, so the send path clicks the textarea
+then pastes (no `r`+`Backspace`, no `Shift+Esc`). Selectors are **LIVE-VERIFIED**
+(2026-07-16): bubble `div[class*="message-"]` + `.copy-response-button` (assistant-only);
+send button `.sendMessageButton`. `Enter` = SEND, `Shift+Enter` = New Line.
+
+| File | Default target | Use for |
+|---|---|---|
+| `z/bridge-cdp-z_new.ts` | `https://chat.z.ai/` | new brainstorm / task, Vision ("mata"), one-off ask |
+| `z/bridge-cdp-z_continue.ts` | `https://chat.z.ai/c/d63fd4ea-d38f-499b-a2b4-96e92e134186` | continue an existing chain (`/webchain-z`) |
+
+Run (same env contract; `BRIDGE_PROMPT` is the only send source):
+
+```bash
+# READ mode (default): read the last assistant reply
+npx tsx z/<file>.ts
+
+# SEND mode (bidirectional): click #chat-input + paste prompt from env, wait, read reply
+BRIDGE_MODE=send BRIDGE_PROMPT="your question here" npx tsx z/<file>.ts
+
+# override endpoint/conversation:
+BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://chat.z.ai/c/... npx tsx z/<file>.ts
+```
+
+The Z-side data dirs (`z_questions_import/`, `z_answers_import/`) are kept **separate**
+from the GPT- and Claude-side ones so the three remote AIs' Q/A and knowledge banks don't
+mix. Chain command: `/webchain-z`.
+
+> Unlike Claude (which uses the `r`+`Backspace` focus trick) and ChatGPT (`Shift+Esc`),
+> z.ai has no focus keyboard shortcut — just click `#chat-input` and paste. See
+> `web-dom-z` §1.
 
 > Cross-PC: on the Windows machine run Chrome with
 > `--remote-debugging-port=9222 --user-data-dir=... --profile-directory="Profile 14"`,
