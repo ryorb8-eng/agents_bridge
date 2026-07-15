@@ -66,11 +66,26 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const browser_ = browser!;
 
   const context = browser_.contexts()[0];
-  const page = await context.newPage();
+
+  // Reuse tab chatgpt yang sudah terbuka (hindari new tab tiap run).
+  // HANYA page yang KITA buat yang ditutup di akhir — jangan tutup tab user (aturan #3).
+  let page: Page | undefined;
+  let pageOwned = false;
+  const targetHost = new URL(CHAT_URL).host;
+  for (const p of context.pages()) {
+    const u = p.url();
+    if (u === CHAT_URL || u.includes(targetHost)) { page = p; break; }
+  }
+  if (!page) {
+    page = await context.newPage();
+    pageOwned = true;
+  }
 
   try {
     // 2. Buka conversation spesifik (BUKAN homepage -> homepage tidak punya .markdown)
-    await page.goto(CHAT_URL, { waitUntil: 'domcontentloaded' });
+    if (page.url() !== CHAT_URL) {
+      await page.goto(CHAT_URL, { waitUntil: 'domcontentloaded' });
+    }
     console.log(`[bridge] Terhubung ke: ${await page.title()} @ ${page.url()}`);
 
     // 3. Tunggu hingga halaman stabil.
@@ -98,8 +113,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   if (KEEP_OPEN) {
     console.log('[bridge] Sukses. BRIDGE_KEEP_OPEN=1 -> browser dibiarkan terbuka.');
   } else {
-    await page.close().catch(() => {});
-    await browser_.close().catch(() => {});
+    // Tutup HANYA page yang KITA buat. Tab chatgpt user (reuse) dibiarkan terbuka (aturan #3).
+    if (pageOwned) await page.close().catch(() => {});
+    await browser_.close().catch(() => {}); // detach CDP, Chrome user tetap jalan
     console.log('[bridge] Sukses. Session ditutup.');
     process.exit(0);
   }
