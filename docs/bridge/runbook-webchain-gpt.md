@@ -1,6 +1,6 @@
-# Runbook: /gpt-web-chain (autonomous Q<>A brainstorm chain)
+# Runbook: /webchain-gpt (autonomous Q<>A brainstorm chain)
 
-Dijalankan via `/gpt-web-chain`. Chain bertanya ke ChatGPT (remote AI) via bridge,
+Dijalankan via `/webchain-gpt`. Chain bertanya ke ChatGPT (remote AI) via bridge,
 mengumpulkan jawaban, memverifikasi, dan lanjut ke Q berikutnya sampai habis /
 stuck / error. Tujuannya: selesaikan antrian `temp_questions_all.md` tanpa
 intervensi, lalu curate ke `bank_knowledges/`.

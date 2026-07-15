@@ -80,7 +80,7 @@ TUJUAN : /home/s/TASK/agents_bridge/brainstrom/chrome_win11/from_projects/optikm
   `--force` eksplisit dari user.
 - **CWD only.** Tulisan hasil hanya ke `agents_bridge/.../Geometry_Engine/`.
 - Hubungan dengan bridge: pertanyaan di `temp_questions_single.md` dikirim lewat
-  `bridge-cdp.ts` (MODE=send) per Protocol, balasan masuk ke `answers_import/`
+  `gpt/bridge-cdp-gpt_continue.ts` (MODE=send) per Protocol, balasan masuk ke `answers_import/`
   (lihat knowledge-pipeline).
 - Baca `.claude/skills/web-dom-chatgpt/SKILL.md` sebelum mengirim apa pun ke
   ChatGPT.

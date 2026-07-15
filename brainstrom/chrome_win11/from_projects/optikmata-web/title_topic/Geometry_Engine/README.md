@@ -28,7 +28,7 @@ Geometry_Engine/
    dengan penomoran urut `Q1, Q2, …` (urutan stabil: tanggal lalu nomor file).
 3. **Kirim satu per satu** — `temp_questions_single.md` berisi pertanyaan berikutnya.
    "Cut" dari `all` → paste ke composer ChatGPT (delay ~0.5s, lalu Enter) via
-   `bridge-cdp.ts` `BRIDGE_MODE=send`. Setelah dijawab, ganti isi `single` dgn Q berikutnya.
+   `gpt/bridge-cdp-gpt_continue.ts` `BRIDGE_MODE=send`. Setelah dijawab, ganti isi `single` dgn Q berikutnya.
 4. **Log** — setiap pertanyaan yg diambil/dikirim dicatat di `log_questions_{dd-mm-yy}.md`
    (juga paste pertanyaan terbaru, yang terbaru di **bawah**).
 
@@ -41,6 +41,7 @@ reject <70%, dan aturan human-like (no em dash, split 50k char) **dijelaskan di 
 - `.claude/skills/bridge-protocol/SKILL.md` — argument/loop + human-like rules.
 - `.claude/skills/knowledge-ops/SKILL.md` — ingestion/sync.
 - `.claude/skills/web-dom-chatgpt/SKILL.md` — DOM ChatGPT (composer/send/scrape/vision).
-- `.claude/skills/bridge-cdp/SKILL.md` + `bridge-cdp.ts` — transport (read + send/wait).
+- `.claude/skills/bridge-cdp/SKILL.md` + `gpt/bridge-cdp-gpt_continue.ts` (continue) /
+  `gpt/bridge-cdp-gpt_new.ts` (new/Vision) — transport (read + send/wait).
 
 Source playbook asli: `../setup_docs/BRAINSTROM_AI_QUESTIONING_chrome.md`.

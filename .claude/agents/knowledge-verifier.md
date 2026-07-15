@@ -4,7 +4,7 @@ description: >-
   Verifies exactly ONE remote-AI (ChatGPT) answer for agents_bridge and writes a
   collision-free working file into answers_import/temp_knowledges/VERIFY-Q<n>.md.
   Read-only on the bridge; never drives the browser; writes only its own VERIFY file.
-  Dispatched by the /gpt-web-chain orchestrator, one per answered question.
+  Dispatched by the /webchain-gpt orchestrator, one per answered question.
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - bridge-protocol

@@ -7,7 +7,7 @@ description: >-
   bentrok. Berhenti & minta user hanya saat stuck/error/keputusan manusia.
 ---
 
-# /gpt-web-chain — autonomous brainstorm Q<>A chain (ChatGPT via bridge)
+# /webchain-gpt — autonomous brainstorm Q<>A chain (ChatGPT via bridge)
 
 Jalankan chain brainstorm: tanya → jawab → verifikasi → tanya lagi, berulang sampai
 antrian `temp_questions_all.md` habis, atau stuck/error, atau butuh keputusan manusia.
@@ -45,7 +45,7 @@ Untuk tiap `Q_NEXT` sampai habis atau stuck:
 Dispatch **satu** `bridge-operator` yang:
 - baca `web-dom-chatgpt` skill dulu;
 - ambil teks pertanyaan dari `QI/temp_questions_single.md` (isi = Q saat ini);
-- kirim via `bridge-cdp.ts` `BRIDGE_MODE=send BRIDGE_PROMPT="…"` (human-like:
+- kirim via `gpt/bridge-cdp-gpt_continue.ts` `BRIDGE_MODE=send BRIDGE_PROMPT="…"` (human-like:
   no Em Dash, ≤50k char, delay 0.5s);
 - tunggu generasi stabil, lalu baca balasan;
 - **APPEND verbatim** balasan ke `AI/temp_answers.md` dengan header:
@@ -97,7 +97,7 @@ Dispatch **satu** `knowledge-verifier` untuk Q ini (baca instruksinya):
 | `AI/temp_answers.md` | bridge-operator (send) | semua subagent |
 | `AI/temp_knowledges/VERIFY-Q<n>.md` | knowledge-verifier(n) | verifier lain / orchestrator |
 | `AI/bank_knowledges/*` | orchestrator (curate) | semua subagent |
-| `bridge-cdp.ts` / CDP session | bridge-operator (1 saat kirim) | — |
+| `gpt/bridge-cdp-gpt_continue.ts` / CDP session | bridge-operator (1 saat kirim) | — |
 
 Subagents di-dispatch **satu per Q untuk SEND** (CDP session = 1 driver) dan boleh
 **di-parallel-kan untuk VERIFY** (file terpisah). Jangan 2 bridge-operator nulis

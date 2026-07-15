@@ -35,18 +35,19 @@ Hook: sebelum mengirim, baca skill **`web-dom-chatgpt`** (MANDATORY) + README in
 | `Shift + Enter` | Baris baru (tidak kirim) |
 | `Ctrl`/`Cmd` + `Shift` + `;` | Copy last code block |
 
-## Via bridge-cdp.ts (otomatis)
+## Via bridge (otomatis — `gpt/bridge-cdp-gpt_continue.ts`)
 
-`bridge-cdp.ts` `BRIDGE_MODE=send BRIDGE_PROMPT="…"` menjalankan alur di atas
-secara terprogram: tulis prompt ke clipboard page → `Shift+Esc` → `Ctrl+V` →
-`Enter`, lalu tunggu generasi stabil & baca balasan. Fallback: insertText manual.
-Balasan mentah masuk ke `answers_import/temp_answers.md`.
+`gpt/bridge-cdp-gpt_continue.ts` `BRIDGE_MODE=send BRIDGE_PROMPT="…"` menjalankan
+alur di atas secara terprogram (target = conversation lama): tulis prompt ke clipboard
+page → `Shift+Esc` → `Ctrl+V` → `Enter`, lalu tunggu generasi stabil & baca balasan.
+Fallback: insertText manual. Balasan mentah masuk ke `answers_import/temp_answers.md`.
+Untuk task/Vision baru pakai `gpt/bridge-cdp-gpt_new.ts` (lihat `web-dom-chatgpt` §1b).
 
 ## Setelah dikirim
 
 - Catat ke `log_questions_15-07-2026.md` (terbaru di bawah).
 - Ganti isi `temp_questions_single.md` dengan Q berikutnya (murni pertanyaan).
-- Balasan diverifikasi via `/gpt-web-chain` (knowledge-verifier) → `bank_knowledges/`.
+- Balasan diverifikasi via `/webchain-gpt` (knowledge-verifier) → `bank_knowledges/`.
 
 ## Pipeline file (CWD only)
 

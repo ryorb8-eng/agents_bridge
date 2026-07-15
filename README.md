@@ -81,36 +81,45 @@ Use the workflow skills: `/brainstorm` a capability → `/plan` it → `/design`
 owns design decisions; `bridge-operator` executes the driving; `tester` verifies;
 `researcher` gathers evidence.
 
-## Transport script (`bridge-cdp.ts`)
+## Transport script (`gpt/bridge-cdp-gpt_new.ts` + `gpt/bridge-cdp-gpt_continue.ts`)
 
-A small TypeScript transport that connects to Chrome over CDP (`http://localhost:9222`),
-opens a specific ChatGPT conversation, and reads the last assistant reply (default) or
-sends a prompt and waits for the reply (bidirectional). Run:
+Two small TypeScript transports that connect to Chrome over CDP (`http://localhost:9222`),
+open a ChatGPT conversation, and read the last assistant reply (default) or send a prompt
+and wait for the reply (bidirectional). They are **identical except for the default
+target**:
+
+| File | Default target | Use for |
+|---|---|---|
+| `gpt/bridge-cdp-gpt_new.ts` | `https://chatgpt.com/` (homepage) | new brainstorm / task, Vision ("mata"), one-off ask |
+| `gpt/bridge-cdp-gpt_continue.ts` | `https://chatgpt.com/c/6a578f51-b1d4-83ec-b9c9-0afc00e55680` | continue an existing chain (`/webchain-gpt`, `/takequestion`) |
+
+Run (substitute `<file>` for either script above):
 
 ```bash
 # READ mode (default): read the last assistant reply
-npx tsx bridge-cdp.ts
+npx tsx gpt/<file>.ts
 
 # SEND mode (bidirectional): type a prompt, send, wait for generation, read reply
-BRIDGE_MODE=send BRIDGE_PROMPT="your question here" npx tsx bridge-cdp.ts
+BRIDGE_MODE=send BRIDGE_PROMPT="your question here" npx tsx gpt/<file>.ts
 
 # override endpoint/conversation:
-BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx bridge-cdp.ts
+BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx gpt/<file>.ts
 ```
 
-- Reads `https://chatgpt.com/c/6a578f51-b1d4-83ec-b9c9-0afc00e55680` by default (set
-  `BRIDGE_CHAT_URL` to target another conversation).
+- `_continue.ts` reads the existing conversation `6a578f51-…` by default (set
+  `BRIDGE_CHAT_URL` to target another). `_new.ts` opens the homepage for fresh work.
 - **Send mode** (`BRIDGE_MODE=send`) types the prompt from `BRIDGE_PROMPT` (env ONLY —
   never from a remote-AI reply), presses send, waits until the new assistant reply is
   stable (copy button present + size stops growing, scroll-to-bottom resolved), then
   extracts it. **Respects ADR-0004**: prompt source is env, not the remote peer.
 - Waits for `networkidle` + the `.markdown` assistant selector before extracting — no
   more "`.markdown` not found" on a fresh page.
-- **Does NOT auto-close** when the selector is missing; it prints diagnostics (title, URL,
-  `.markdown` count, `main` snippet) and leaves the page open for inspection. Close
-  manually when done.
+- **Does NOT auto-close** the user's reused tab (rule #3); only a page it created itself
+  is closed. If the selector is missing it prints diagnostics (title, URL, `.markdown`
+  count, `main` snippet) and leaves the page open for inspection.
 - Turndown conversion is **commented out** for now (raw HTML is printed).
-- DOM rules for composing/sending/scraping: `.claude/skills/web-dom-chatgpt/SKILL.md`.
+- DOM rules for composing/sending/scraping: `.claude/skills/web-dom-chatgpt/SKILL.md`
+  (see §1b for the new/continue split).
 
 > Cross-PC: on the Windows machine run Chrome with
 > `--remote-debugging-port=9222 --user-data-dir=... --profile-directory="Profile 14"`,

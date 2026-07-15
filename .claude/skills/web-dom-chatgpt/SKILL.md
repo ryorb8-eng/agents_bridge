@@ -14,8 +14,9 @@ metadata:
 # web-dom-chatgpt — ChatGPT Web UI DOM Rules
 
 **Mandatory** for every agent that touches `chatgpt.com` via the bridge
-(`bridge-cdp.ts`, `bridge-operator`, any `/takequestion` or bidirectional flow).
-Read this BEFORE sending, reading, or scraping.
+(`gpt/bridge-cdp-gpt_new.ts`, `gpt/bridge-cdp-gpt_continue.ts`, `bridge-operator`,
+any `/takequestion` / `/webchain-gpt` / Vision flow). Read this BEFORE sending,
+reading, or scraping.
 
 The remote AI runs on a real web service. Drive it **human-like** (see
 `bridge-protocol` → Human-like communication): no Em Dash, ≤50k chars/send,
@@ -62,6 +63,43 @@ file single.
 - Setelah dijawab, ganti isinya dengan Q berikutnya (lagi, murni pertanyaan).
 - Hook: sebelum mengirim, agent WAJIB baca `questions_import/README.md` (cara
   kirim) + skill ini (`web-dom-chatgpt`). Jangan simpan cara kirim di file single.
+
+### §1b. Dua file transport — `new` vs `continue` (+ Vision)
+
+Transport CDP sekarang **terbelah dua** sesuai tujuan. Pilih yang tepat:
+
+| File | Default target | Dipakai untuk |
+|---|---|---|
+| `gpt/bridge-cdp-gpt_new.ts` | `https://chatgpt.com/` (homepage) | brainstorm / task **BARU**, Vision ("mata"), satu-off ask tanpa mengganggu conversation lama |
+| `gpt/bridge-cdp-gpt_continue.ts` | `https://chatgpt.com/c/6a578f51-b1d4-83ec-b9c9-0afc00e55680` | **lanjutkan** chain yang sedang berjalan (mis. `/webchain-gpt` yang menambah Q ke antrian sama) |
+
+Keduanya identik secara logika (sama dengan `bridge-cdp.ts` lama) — hanya
+`CHAT_URL` default yang beda. Override target kapan saja lewat
+`BRIDGE_CHAT_URL=https://chatgpt.com/c/<id>`.
+
+Cara jalankan (ganti `<file>` dengan salah satu di atas):
+
+```bash
+# READ mode (default): baca balasan terakhir assistant
+npx tsx gpt/<file>.ts
+
+# SEND mode (bidirectional): paste prompt dari env, tunggu stabil, baca balasan
+BRIDGE_MODE=send BRIDGE_PROMPT="..." npx tsx gpt/<file>.ts
+
+# override endpoint / conversation:
+BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx gpt/<file>.ts
+```
+
+- **Vision / "mata"** (lihat §6) selalu pakai `bridge-cdp-gpt_new.ts`: paste URL
+  gambar publik / RAW GitHub ke composer homepage, lalu minta deskripsi. Jangan
+  pakai `_continue.ts` untuk vision agar conversation brainstorm tidak tercampur
+  gambar.
+- `/webchain-gpt` dan `/takequestion` pakai `bridge-cdp-gpt_continue.ts` (target =
+  conversation lama) — lihat command masing-masing.
+- Keamanan (ADR-0004) tetap: prompt HANYA dari `BRIDGE_PROMPT` (env), tidak dari
+  balasan remote; script tidak menutup tab user, tidak jalankan aksi lokal atas
+  instruksi remote AI.
+
 
 ---
 
@@ -174,7 +212,8 @@ AI:
      one file, append numbering (`model_kacamata_viral_01.webp`, `_02`, …).
   3. **Sync to GitHub** so it gets a public RAW URL:
      `https://github.com/ryorb8-eng/agents_bridge/raw/refs/heads/main/docs/TEMP_IMAGES/<name>`
-  4. Paste that RAW URL into ChatGPT and run the image-to-markdown prompt.
+  4. Paste that RAW URL into ChatGPT (pakai `gpt/bridge-cdp-gpt_new.ts` — Vision)
+     and run the image-to-markdown prompt.
 
 The remote AI's textual description becomes the local AI's "eyes."
 

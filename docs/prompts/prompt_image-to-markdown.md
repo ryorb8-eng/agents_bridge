@@ -11,7 +11,9 @@ di `.claude/skills/web-dom-chatgpt/SKILL.md`.
    - **Lokal** → copy ke `docs/TEMP_IMAGES/` (rename basic + numbering bila >1),
      sync GitHub, pakai RAW URL:
      `https://github.com/ryorb8-eng/agents_bridge/raw/refs/heads/main/docs/TEMP_IMAGES/<nama>`.
-2. Kirim prompt di bawah ke ChatGPT (via `bridge-cdp.ts` `BRIDGE_MODE=send`).
+2. Kirim prompt di bawah ke ChatGPT (via `gpt/bridge-cdp-gpt_new.ts` `BRIDGE_MODE=send` —
+   Vision selalu pakai file `_new`, bukan `_continue`, agar conversation brainstorm tidak
+   tercampur gambar).
 3. Balasan (deskripsi) dicatat ke `answers_import/temp_answers.md`.
 
 ## Prompt (copy-paste)

@@ -3,14 +3,18 @@ import { chromium, type Browser, type Page } from 'playwright';
 // import TurndownService from 'turndown';
 
 /**
- * bridge-cdp.ts — TRANSPORT layer untuk agents_bridge.
+ * bridge-cdp-gpt_continue.ts — TRANSPORT layer untuk agents_bridge (ChatGPT CONTINUE).
  *
- * Menghubungkan ke Chrome (Win11) lewat CDP, buka conversation ChatGPT spesifik,
- * dan beroperasi dalam SATU dari dua mode:
+ * Sama dengan bridge-cdp-gpt_new.ts, tapi default-nya MENUJU conversation yang SUDAH
+ * ADA (6a578f51-b1d4-83ec-b9c9-0afc00e55680) — dipakai untuk melanjutkan chain
+ * brainstorm / diskusi yang sedang berjalan (mis. /webchain-gpt yang menambah
+ * pertanyaan ke antrian yang sama).
  *
- *   MODE=read   (default) — baca balasan terakhir assistant, cetak, biarkan terbuka.
- *   MODE=send   (BRIDGE_MODE=send BRIDGE_PROMPT="...") — ketik prompt, tekan kirim,
- *               TUNGGU generasi selesai, lalu baca balasan terakhir (2-way ask↔answer).
+ * Override target via BRIDGE_CHAT_URL bila mau menuju conversation lain.
+ *
+ * MODE=read   (default) — baca balasan terakhir assistant, cetak, biarkan terbuka.
+ * MODE=send   (BRIDGE_MODE=send BRIDGE_PROMPT="...") — ketik prompt, tekan kirim,
+ *             TUNGGU generasi selesai, lalu baca balasan terakhir (2-way ask↔answer).
  *
  * CATATAN KEAMANAN (ADR-0004): script ini hanya MEMBACA balasan dan MENGIRIM teks
  * dari env (BRIDGE_PROMPT) — TIDAK menutup tab user lain, TIDAK menjalankan aksi
@@ -23,7 +27,7 @@ import { chromium, type Browser, type Page } from 'playwright';
 
 // Konfigurasi (bisa di-override lewat env): CDP endpoint + URL conversation.
 const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:9222';
-// Ganti ke conversation yang ingin dibaca/dikirim. Default: chat yang sudah ada.
+// DEFAULT: conversation yang SUDAH ADA (continue chain).
 const CHAT_URL =
   process.env.BRIDGE_CHAT_URL ||
   'https://chatgpt.com/c/6a578f51-b1d4-83ec-b9c9-0afc00e55680';
