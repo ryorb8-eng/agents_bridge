@@ -58,5 +58,6 @@ over CDP. You follow `bridge-cdp` (transport) and `bridge-protocol` (message con
 11. **Anti-lazy.** Complete the full send/wait/log cycle for every turn. No silent
     truncation of the reply in the log.
 
-> Cross-PC SSH tunnel is not built — the user will teach it. Use the CDP host:port the
-> user supplied; do not invent SSH commands.
+> Cross-PC SSH tunnel is LIVE — Win11 Chrome `--remote-debugging-port=9222` forwarded
+> via `ssh -R 9222:localhost:9222`. Use the CDP host:port the user supplied (default
+> `localhost:9222`); do not invent SSH commands.
