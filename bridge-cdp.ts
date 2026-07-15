@@ -40,7 +40,8 @@ const ASSISTANT_MSG = 'div[data-message-author-role="assistant"] .markdown';
 // send button muncul saat ada teks.
 const COMPOSER_TEXTAREA = 'textarea[name="prompt-textarea"]';
 const COMPOSER_PROSEMIRROR = '#prompt-textarea.ProseMirror';
-const SEND_BUTTON = 'button#composer-submit-button, button[data-testid="send-button"]';
+const SEND_BUTTON =
+  'button#composer-submit-button, button[data-testid="send-button"], button[aria-label="Kirim perintah"]';
 
 // Tunggu generasi selesai: copy button muncul di pesan terakhir = stabil.
 const COPY_BUTTON = 'button[data-testid="copy-turn-action-button"]';
@@ -98,28 +99,58 @@ async function countAssistantReplies(page: Page): Promise<number> {
 }
 
 /**
- * MODE=send: ketik prompt, kirim, tunggu generasi selesai, baca balasan terakhir.
- * Hormati web-dom-chatgpt: scroll-to-bottom, copy-button, no-partial.
+ * MODE=send: paste prompt (clipboard), kirim, tunggu generasi selesai, baca
+ * balasan terakhir.
+ * METODE PRIORITY (web-dom-chatgpt §1): clipboard paste, bukan ketik manual.
+ *   1) write prompt ke page clipboard
+ *   2) Shift+Esc fokus composer
+ *   3) Ctrl+V paste
+ *   4) Enter kirim
+ * Fallback: insertText manual (human-like delay) bila clipboard/paste gagal.
  */
 async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
-  // Pastikan composer ada.
-  await page.waitForSelector(`${COMPOSER_TEXTAREA}, ${COMPOSER_PROSEMIRROR}`, { timeout: 30_000 });
+  // Pastikan composer TERLIHAT ada. Composer ChatGPT = ProseMirror overlay
+  // (#prompt-textarea.ProseMirror) yang VISIBLE; textarea fallback-nya display:none.
+  await page.waitForSelector(`${COMPOSER_PROSEMIRROR}:visible`, { timeout: 30_000 });
 
   const before = await countAssistantReplies(page);
   console.log(`[bridge] Balasan assistant sebelum kirim: ${before}`);
 
-  // Ketik ke textarea (fallback ProseMirror). fill cepat; rate-limit natural
-  // di-handle ChatGPT. Human-like pacing ditangani di layer protocol, bukan di sini.
-  const typed = await typeIntoComposer(page, prompt);
-  if (!typed) {
-    console.error('[bridge] Tidak bisa mengetik ke composer.');
-    process.exit(1);
+  // === PRIORITY: clipboard paste (Shift+Esc -> Ctrl+V -> Enter) ===
+  let pasted = false;
+  try {
+    // grant + tulis ke clipboard page context
+    const ctx = page.context();
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+    await page.evaluate((text) => navigator.clipboard.writeText(text), prompt);
+    // fokus composer via shortcut Shift+Esc
+    await page.keyboard.press('Shift+Escape');
+    await sleep(400);
+    // paste
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V');
+    await sleep(600);
+    // Enter kirim
+    await page.keyboard.press('Enter');
+    pasted = true;
+    console.log('[bridge] Paste+Enter dikirim (clipboard method).');
+  } catch (e) {
+    console.warn('[bridge] Clipboard/paste gagal, fallback ketik manual:', (e as Error).message);
   }
 
-  // Tekan kirim (tombol send muncul setelah ada teks).
-  await page.waitForSelector(SEND_BUTTON, { timeout: 10_000 });
-  await page.click(SEND_BUTTON);
-  console.log('[bridge] Prompt terkirim. Menunggu generasi…');
+  // === FALLBACK: insertText manual (lambat, rawan error) ===
+  if (!pasted) {
+    const typed = await typeIntoComposer(page, prompt);
+    if (!typed) {
+      console.error('[bridge] Tidak bisa mengirim ke composer (paste & ketik gagal).');
+      process.exit(1);
+    }
+    // tekan tombol send (fallback)
+    await page.waitForSelector(SEND_BUTTON, { timeout: 10_000, state: 'visible' });
+    await page.click(SEND_BUTTON, { timeout: 5_000 });
+    console.log('[bridge] Prompt terkirim (manual fallback). Menunggu generasi…');
+  } else {
+    console.log('[bridge] Menunggu generasi…');
+  }
 
   // Tunggu balasan baru muncul.
   await page.waitForFunction(
@@ -135,20 +166,20 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
   await readLastReply(page);
 }
 
-/** Ketik prompt ke composer. Return true jika berhasil. */
+/** Ketik prompt ke composer (FALLBACK manual, bukan primary). Return true jika berhasil. */
 async function typeIntoComposer(page: Page, prompt: string): Promise<boolean> {
-  // Coba textarea dulu.
+  // Prioritas: ProseMirror VISIBLE (textarea fallback display:none).
+  const pm = await page.$(`${COMPOSER_PROSEMIRROR}:visible`);
+  if (pm) {
+    await pm.click();
+    await page.keyboard.type(prompt, { delay: 8 }); // pacing human-like
+    return true;
+  }
+  // Fallback textarea (jarang: bila ProseMirror tidak terdeteksi).
   const ta = await page.$(COMPOSER_TEXTAREA);
   if (ta) {
     await ta.click();
     await ta.fill(prompt);
-    return true;
-  }
-  // Fallback ProseMirror.
-  const pm = await page.$(COMPOSER_PROSEMIRROR);
-  if (pm) {
-    await pm.click();
-    await page.keyboard.type(prompt, { delay: 10 });
     return true;
   }
   return false;

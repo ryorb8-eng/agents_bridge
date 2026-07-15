@@ -1,16 +1,3 @@
-# temp_questions_single.md — Pertanyaan AKTIF (berikutnya dikirim)
-
-Isi file ini = SATU pertanyaan berikutnya dari `temp_questions_all.md` (urut Q1…).
-Cara kirim lewat bridge (lihat web-dom-chatgpt + bridge-cdp MODE=send):
-1. Copy isi di bawah ini (antara pembatas).
-2. Paste ke composer ChatGPT dengan delay ~0.5s antar bagian (human-like).
-3. Tekan Enter.
-4. Tunggu generasi selesai → balasan masuk ke `answers_import/temp_answers.md`.
-5. Setelah dijawab, catat ke `log_questions_15-07-2026.md` dan ganti isi file ini
-   dengan Q berikutnya.
-
----
-
 ## Q1 — Bridge "shadow-only" (ga berbentuk)
 
 VTO bridge dirender sbg `<path fill+stroke>` asli, TAPI base jadi `transparent`
@@ -26,5 +13,3 @@ atau (3) beri bridge base stroke-width minimal terlihat? Atau kombinasi?
 **Q1b.** Apakah lebih benar bridge di-render sebagai FILLED shape (area hidung) bukan
 hanya STROKED centerline ribbon (`bridgeCatalog.ts:352-376` emit centerline stroke only)?
 Trade-off parity vs bentuk?
-
----

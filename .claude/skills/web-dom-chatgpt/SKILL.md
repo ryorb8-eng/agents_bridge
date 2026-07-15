@@ -23,40 +23,51 @@ natural pacing. Bot-like behaviour triggers CAPTCHA / TOS friction.
 
 ---
 
-## 1. Composer (input) detection
+## 1. PRIORITY METHOD — Send via clipboard (copy-paste), NOT manual typing
 
-A node is the **prompt textarea** ONLY when ALL of these match. Each mismatch
-lowers confidence — if confidence drops below ~100%, **auto-learn** (update this
-section with the new selector + date).
+**JANGAN pernah ketik manual.** Cara paling andal (terutama pertanyaan panjang)
+adalah: copy isi pertanyaan → fokus composer → paste → Enter.
 
-| Criterion | Expected value |
+1. **Isi sumber pertanyaan** = `temp_questions_single.md` (lihat aturan §1a).
+   Copy **SELURUH** isinya (Select All lalu Copy).
+2. Buka `https://chatgpt.com/*` (tab chat yang sudah ke-load).
+3. Tekan shortcut **`Shift + Esc`** → mem-FOCUS chat input (composer).
+4. Tekan **`Ctrl + V`** (atau `Cmd + V` di Mac) → paste pertanyaan.
+5. Tekan **`Enter`** → terkirim. Selesai. Tunggu GPT merespons.
+
+> Ini adalah URUTAN ATAS / priority. Hanya bila gagal (paste tidak masuk, composer
+> tidak fokus, shortcut tidak responsif) baru gunakan fallback ketik manual (§2).
+> Ketik manual LAMBAT dan rawan error (timeout ProseMirror tersembunyi, seperti
+> yang pernah terjadi), apalagi untuk pertanyaan sangat panjang.
+
+### Shortcut keys (ChatGPT web)
+
+| Shortcut | Aksi |
 |---|---|
-| Tag | `textarea` |
-| `name` | `prompt-textarea` |
-| `placeholder` | `Tanyakan apa saja` |
+| `Shift + Esc` | Focus chat input (composer) |
+| `Enter` | Kirim (SEND) |
+| `Shift + Enter` | Baris baru (New Line, tidak kirim) |
+| `Ctrl`/`Cmd` + `Shift` + `;` | Copy last code block |
 
-Observed real markup (ChatGPT uses a ProseMirror overlay; the real textarea is
-hidden):
+### §1a. Aturan `temp_questions_single.md` (kemurnian isi)
 
-```html
-<div class="wcDTda_prosemirror-parent ...">
-  <textarea class="wcDTda_fallbackTextarea" name="prompt-textarea" ...
-            placeholder="Tanyakan apa saja" ... style="display: none;"></textarea>
-  <div contenteditable="true" ... class="ProseMirror" id="prompt-textarea" ...></div>
-</div>
-```
+File `questions_import/temp_questions_single.md` **HANYA** boleh berisi teks
+pertanyaan yang akan di-paste ke ChatGPT. **DILARANG** ada penjelasan metode,
+CATATAN, header panduan, atau teks lain di dalamnya. Semua keterangan cara kirim
+sudah dipindah ke `questions_import/README.md` — baca di sana, jangan taruh di
+file single.
 
-**To type:** target the visible `ProseMirror` (`#prompt-textarea`) OR the hidden
-`textarea[name="prompt-textarea"]`. If one is `display:none`, use the other.
-Prefer Playwright `fill` on the `textarea` then confirm the `ProseMirror`
-reflects it; if `fill` is rejected, use `click` + `type` with a short (~0.5s)
-delay between keystrokes for human-like pacing.
+- Orchestrator mengisi `temp_questions_single.md` = 1 pertanyaan berikutnya (dari
+  `temp_questions_all.md`), murni tanpa boilerplate.
+- Setelah dijawab, ganti isinya dengan Q berikutnya (lagi, murni pertanyaan).
+- Hook: sebelum mengirim, agent WAJIB baca `questions_import/README.md` (cara
+  kirim) + skill ini (`web-dom-chatgpt`). Jangan simpan cara kirim di file single.
 
 ---
 
-## 2. Send button
+## 2. Send button (fallback bila clipboard/paste gagal)
 
-The composer swaps buttons depending on contents:
+Gunakan HANYA bila metode §1 gagal. Composer menukar tombol berdasar isi:
 
 | State | Button |
 |---|---|
@@ -70,6 +81,14 @@ click the voice button (it opens voice input).
 **Stuck / not sending?** Press `Shift+F5` (hard refresh). If the combo is
 unsupported by the environment, fall back to `F5`. After refresh, re-attach to
 the page and re-locate the composer (DOM resets).
+
+**Manual-type fallback (last resort):** jika terpaksa mengetik, target VISIBLE
+`ProseMirror` (`#prompt-textarea.ProseMirror`, `:visible`), BUKAN textarea
+`name="prompt-textarea"` (itu `display:none`). Selector gabungan
+`textarea[name="prompt-textarea"], #prompt-textarea.ProseMirror` resolve **2
+elemen** dan Playwright ambil yang tersembunyi duluan → `waitForSelector(visible)`
+timeout. Pakai `keyboard.type(text, {delay:8})`. (Updated 2026-07-15 setelah live
+send-mode timeout.)
 
 ---
 
