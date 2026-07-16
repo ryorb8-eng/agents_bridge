@@ -102,21 +102,35 @@ BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx g
 
 ## 3. Scrape — ChatGPT reply selector (`→ web-dom-general §4` for the order)
 
-> ⚠️ **DOM Dinamis** — selector reply di bawah SUDAH drift (2026-07-17):
-> `div[data-message-author-role="assistant"] .markdown` tidak match DOM ChatGPT
-> terkini → `readLastReply` timeout (`*.markdown tidak ditemukan`). SOP self-adapt
-> wajib: **`web-dom-general §7.1`** — re-snapshot DOM live, update selector ini,
-> update `readLastReply` di `_new.ts` + `_continue.ts`, re-run sampai capture sukses.
+**Metode capture (LIVE-VERIFIED 2026-07-17, Profile 14 `c/6a578f51...`):**
 
-Copy button (best), LIVE-VERIFIED:
+1. **Authoritative = `innerText` node assistant terakhir** (paling mudah & akurat).
+   Evaluasi DOM: ambil node `[data-message-author-role="assistant"]` TERAKHIR, baca
+   `.innerText`. Hasil: 6528 char jawaban ASLI. **JANGAN pakai clipboard sebagai sumber
+   utama** — clipboard OS Windows terbukti **KOTOR** (saat tekan "Salin respons"
+   terbawah, clipboard isi 9023 char yang `match=false` dengan jawaban = sisa copy user
+   sendiri). `web-dom-general §4` poin 1.
+2. **Tombol "Salin respons" = konfirmasi, BUKAN sumber teks.** `button[aria-label="Salin
+   respons"]` (alias `data-testid="copy-turn-action-button"`). Di ChatGPT tombol ini
+   **TIDAK** berada di dalam elemen `[data-message-author-role]` (setiap pesan `copy=0`
+   di inspect) — ia toolbar terpisah. Klik tombol terbawah (`buttons[last].click()` +
+   `scrollIntoView`) sebagai verifikasi balasan utuh, tapi teks capture ambil dari
+   `innerText` node assistant terakhir (poin 1).
+3. **Selector lama `.markdown` MASIH VALID** — `div[data-message-author-role="assistant"]
+   .markdown` masih match 3 node di conversation ini. Failure capture sebelumnya BUKAN
+   drift selector, melainkan **page salah** (tab kebuka `chrome://new-tab-page/`, bukan
+   chatgpt) → `waitForSelector` timeout di halaman kosong. Jadi `readLastReply` WAJIB
+   guard: pastikan page url mengandung `chatgpt.com` SEBELUM `waitForSelector`.
+
+Copy button (verified markup):
 ```html
 <button ... aria-label="Salin respons"
         data-testid="copy-turn-action-button" data-state="closed">
 ```
 
-Reply selector (last assistant message):
+Reply container (last assistant message) — pakai INI sebagai anchor innerText:
 ```css
-div[data-message-author-role="assistant"] .markdown
+[data-message-author-role="assistant"]
 ```
 
 

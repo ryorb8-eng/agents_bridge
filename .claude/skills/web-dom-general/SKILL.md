@@ -78,15 +78,23 @@ Only capture the reply once it is **stable** (copy button present, no growth for
 When a reply is complete, extract it in this priority. Stop at the first that works;
 do NOT scrape raw source code (too complex / brittle).
 
-1. **Copy button (best).** Click the per-turn copy action, then read the clipboard.
-   This yields the exact remote-rendered text. Read clipboard via the driver.
-   (Per-remote copy-button selector: see `web-dom-<remote>` §Scrape.)
-2. **Turndown fallback.** If clipboard is unavailable, grab the last assistant message
-   outerHTML and convert with `turndown` (`codeBlockStyle: 'fenced'`). Bridge-cdp
-   currently prints raw HTML; turndown is wired but commented pending validation.
-3. **Ctrl+A / Ctrl+C fallback.** As last resort, focus the message node, `Ctrl+A`,
-   `Ctrl+C`, then read the clipboard.
-4. **Never scrape `<source>` code blocks** for content — they are for rendering,
+1. **InnerText node assistant terakhir (AUTHORITATIVE — paling mudah & akurat).**
+   Ambil teks langsung dari node balasan assistant terakhir via DOM evaluate
+   (`innerText`), BUKAN dari clipboard. Terbukti live (2026-07-17, ChatGPT Profile 14):
+   innerText node terakhir = 6528 char teks jawaban ASLI; sementara clipboard OS
+   **KOTOR** (9023 char, `match=false` — sisa copy user sendiri di Windows).
+   Jadi innerText = gold standard; clipboard TIDAK boleh jadi sumber utama.
+   (Selector node terakhir per-remote: lihat `web-dom-<remote>` §Scrape.)
+2. **Tombol copy sebagai konfirmasi (bukan sumber teks).** Klik tombol copy per-turn
+   (`Salin respons` / `copy-turn-action-button`) sebagai aksi verifikasi bahwa
+   balasan utuh & ter-render; jangan jadikan teksnya sumber capture.
+3. **Turndown fallback.** Jika innerText dirasa kurang (mis. butuh markdown persis),
+   grab outerHTML node terakhir dan convert dengan `turndown`
+   (`codeBlockStyle: 'fenced'`). Bridge-cdp currently prints raw HTML; turndown wired
+   but commented pending validation.
+4. **Ctrl+A / Ctrl+C fallback.** Sebagai RESORT TERAKHIR jika DOM evaluate gagal:
+   fokus node, `Ctrl+A`, `Ctrl+C`, baca clipboard. (Rawan clipboard kotor — lihat §1.)
+5. **Never scrape `<source>` code blocks** for content — they are for rendering,
    not reading. You will corrupt the reply.
 
 The per-remote reply selector (last assistant message) is documented in
@@ -170,3 +178,30 @@ kali untuk menyelematkan jawaban yang sudah jadi, tapi **TIDAK BOLEH** dijadikan
 permanen pengganti selector — self-adapt (1–4) di atas tetap **wajib** dijalankan.
 Untuk vendor lain (bukan ChatGPT), ganti `web-dom-<remote>` yang sesuai; prinsip
 self-adapt berlaku ke SEMUA remote yang di-bridge.
+
+### 7.2 Wajib SIMPAN SOLUSI KRUSIAL LANGSUNG KE SKILL (jangan tunda)
+
+Bila selama bekerja ditemukan **solusi krusial** (penemuan yang mengubah cara kerja
+transport / selector / metode capture yang BENAR & TERBUKTI via eksperimen live —
+bukan sekadar hipotesis), MAKA **WAJIB** langsung simpan ke skill yang sesuai
+**pada sesi yang sama**, TIDAK BOLEH ditunda dengan frasa "untuk perbaikan nanti" /
+"Kesimpulan untuk perbaikan transport nanti" / "TODO".
+
+- **Kategorisasi → taruh di skill yang tepat:**
+  - Berlaku ke **SEMUA** remote → `web-dom-general` (§4 scrape / §3 wait / §7).
+  - Spesifik **ChatGPT** → `web-dom-chatgpt`. **Claude Web** → `web-dom-claude`.
+    **Z.ai** → `web-dom-z`. Vendor lain → skill `web-dom-<remote>`-nya.
+  - Bukan-DOM (transport/trust/architecture) → skill/ADR terkait (`bridge-cdp`,
+    `bridge-protocol`, `docs/adr/`).
+- **Isi penemuan:** selector/markup konkret + hasil terukur (contoh: "innerText node
+  assistant terakhir = 6528 char; clipboard = 9023 char KOTOR → tolak clipboard") +
+  tanggal + cara pakai. Hindari narasi prosess; tulis sebagai aturan siap-pakai.
+- **Jangan simpan solusi sebagai TODO di chat / intisari saja** — skill adalah sumber
+  kebenaran bagi driver berikutnya; kalau cuma di intisari, agent lain bisa lupa.
+- Setelah menyimpan, barulah anggap pekerjaan itu "done". Solusi krusial yang ditunda
+  = bug yang akan terulang di run berikutnya.
+
+Contoh temuan yang wajib langsung disimpan (bukan ditunda): *readLastReply harus pakai
+`[data-message-author-role="assistant"]` terakhir (innerText) sebagai **authoritative**,
+dan **TOLAK clipboard sebagai sumber utama** (terbukti kotor di Win11). Tombol
+"Salin respons" cukup sebagai aksi konfirmasi, bukan sumber teks.*

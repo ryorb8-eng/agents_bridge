@@ -40,6 +40,9 @@ const PROMPT = process.env.BRIDGE_PROMPT || '';
 // Selector ChatGPT: pesan assistant dibungkus .markdown di dalam
 // div[data-message-author-role="assistant"].
 const ASSISTANT_MSG = 'div[data-message-author-role="assistant"] .markdown';
+// Container balasan assistant terakhir — anchor AUTHORITATIVE (baca innerText langsung,
+// bukan clipboard yang terbukti KOTOR di Win11). Lihat web-dom-general §4 / web-dom-chatgpt §3.
+const ASSISTANT_CONTAINER = '[data-message-author-role="assistant"]';
 
 // Composer + send (per web-dom-chatgpt): ProseMirror overlay + hidden textarea,
 // send button muncul saat ada teks.
@@ -360,31 +363,40 @@ async function resolveScrollToBottom(page: Page): Promise<void> {
 
 /** MODE=read: ambil balasan terakhir assistant dan cetak. */
 async function readLastReply(page: Page): Promise<void> {
-  await page.waitForSelector(ASSISTANT_MSG, { timeout: 30_000 });
+  // GUARD: pastikan page benar-benar di chatgpt.com. Capture-failure lalu (page salah
+  // kebuka chrome://new-tab-page/ -> waitForSelector timeout di halaman kosong) bukan
+  // drift selector. Kalau salah page, navigasi dulu ke CHAT_URL.
+  if (!/chatgpt\.com/.test(page.url())) {
+    console.warn(`[bridge] Page bukan chatgpt.com (${page.url()}) — navigasi ke ${CHAT_URL}`);
+    await page.goto(CHAT_URL, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle').catch(() => {});
+  }
 
-  const lastMessageHtml = await page.evaluate((sel) => {
-    const nodes = Array.from(document.querySelectorAll(sel));
+  // AUTHORITATIVE: baca innerText langsung dari node assistant terakhir.
+  // Clipboard OS (Win11) terbukti KOTOR -> JANGAN jadikan sumber utama (web-dom-general §4).
+  const lastText = await page.evaluate((containerSel) => {
+    const nodes = Array.from(document.querySelectorAll(containerSel)) as HTMLElement[];
     if (nodes.length === 0) return null;
-    return nodes[nodes.length - 1].outerHTML;
-  }, ASSISTANT_MSG);
+    return (nodes[nodes.length - 1].innerText || '').trim();
+  }, ASSISTANT_CONTAINER);
 
-  if (lastMessageHtml) {
-    // Turndown di-comment: keluarkan HTML mentah dulu supaya tidak auto-close
-    // saat konversi gagal.
-    // const cleanMarkdown = turndownService.turndown(lastMessageHtml);
-    console.log('\n--- HASIL JAWABAN GPT (HTML) ---\n');
-    console.log(lastMessageHtml);
+  if (lastText && lastText.length > 0) {
+    // Turndown di-comment: keluarkan teks mentah dulu supaya tidak auto-close saat gagal.
+    // const cleanMarkdown = turndownService.turndown(lastText);
+    console.log('\n--- HASIL JAWABAN GPT ---\n');
+    console.log(lastText);
     console.log('\n[bridge] Sukses. Browser dibiarkan terbuka untuk inspeksi.');
   } else {
-    const diag = await page.evaluate(() => ({
+    const diag = await page.evaluate(({ msgSel, contSel }) => ({
       title: document.title,
       url: location.href,
-      markdownCount: document.querySelectorAll('.markdown').length,
+      assistantContainerCount: document.querySelectorAll(contSel).length,
+      markdownCount: document.querySelectorAll(msgSel).length,
       mainSnippet: (document.querySelector('main')?.innerText || '').slice(0, 300),
-    }));
-    console.error('\n[bridge] Elemen assistant `.markdown` tidak ditemukan.');
+    }), { msgSel: ASSISTANT_MSG, contSel: ASSISTANT_CONTAINER });
+    console.error('\n[bridge] Balasan assistant (innerText) kosong/tidak ditemukan.');
     console.error('[bridge] Diagnostik:', JSON.stringify(diag, null, 2));
     console.error('[bridge] Browser SENGAJA dibiarkan terbuka — lihat page untuk inspeksi DOM.');
-    process.exit(1);
+    throw new Error('assistant innerText kosong/tidak ditemukan');
   }
 }
