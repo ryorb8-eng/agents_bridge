@@ -39,3 +39,12 @@
 - Panggil user **"MASTER"**.
 - MASTER buka/tutup akses SSH secara manual (plain ↔ scoped) saat butuh. Saat scoped, agent TIDAK bisa tulis file bebas (termasuk `C:\Users\ryoro\.ssh\authorized_keys2`) — benar-benar read/gatekeeper-only.
 - Git commit trailer = `CodeName: AVA` (tanpa `Co-Authored-By`/email). Port 20120–20130 = agent, jangan kill.
+
+## [2026-07-17] Claude Web live bridge — kritis DOM drift + send fix (Profile 2)
+- **Q15/Q16/Q17 dijawab LIVE di claude.ai (Profile 2), conversation `133920ad-a1d1-4582-a5e7-b968c41a299d`.** Jawaban tersimpan di `claude_answers_import/temp_answers.md` (Q15=3477, Q16=4048, Q17=4609 char).
+- **BUG KRITIS 1 — tombol Send case-sensitive:** selector lama `button[aria-label="Send Message"]` (capital M) TIDAK match; live `aria-label="Send message"` (lowercase m). CSS attr selector case-SENSITIVE → `sendVisible` selalu null → fallback click gagal → draft Q15 menumpuk tak terkirim. FIX: pakai flag `i` → `button[aria-label="Send message" i], button[aria-label="Send" i], button[type="submit"]`.
+- **BUG KRITIS 2 — reply selector MATI:** `div[data-testid="assistant-message"]` & `[data-message-author-role="assistant"]` SUDAH TIDAK ADA di Claude live 2026-07-17. Tiap pesan (user+assistant per turn) sekarang dibungkus **`div[role="article"]`**; balasan terakhir = elemen TERAKHIR. Copy button = **`button[data-testid="action-bar-copy"]`** (bukan `aria-label="Copy"`).
+- **SEND otoritatif = KLIK tombol** (bukan Shift+Enter). Shift+Enter terbukti GAGAL submit di layout tertentu (Q15 stuck). Urutan: fokus trik `r`→Backspace → `Ctrl+V` paste → **klik tombol Send**.
+- **URL sesi mutasi SETELAH kirim:** capture URL `/chat/<uuid>` HARUS setelah klik Send (sebelumnya di-cap sebelum kirim → selalu `claude.ai/new`). Pindah `captureSessionUrl` ke sesudah klik send di kedua transport.
+- **Terapkan ke:** kedua transport `claude/bridge-cdp-claude_new.ts` + `_continue.ts` (selector `ASSISTANT_MSG='div[role="article"]'`, `COPY_BUTTON='button[data-testid="action-bar-copy"]'`, `SEND_BUTTON` case-insensitive, send=klik tombol). `web-dom-claude` §3 (scrape) + §Send button + shortcut table di-update; `metadata.confidence=live-observed`. `tsc --noEmit` PASS.
+- **§8 Mid-task adaptation policy** DITAMBAH ke `web-dom-general` (MASTER 2026-07-17): saat confidence <50% di tengah task, izin fix/extend/adapt asal "know what you're doing" + BACKUP original ke `setup_docs/BAK/<vendor>/<file>.<timestamp>.bak`. Kedua claude transport di-backup ke `BAK/claude/*.20260717-033851.bak`.

@@ -34,3 +34,20 @@ SEQ | SENDER | TIMESTAMP | INTENT | PAYLOAD | OBSERVED
 0006 | REMOTE | 2026-07-16 02:18 | answer Q16 | "<verbatim GPT reply: HTML, <div class=markdown> w/ Summary/Analysis/Q16a(Responsive+A11y: max-width:100%, role=img+aria-label+title, aria buttons/target/tap)/Q16b(Perf: memo at Geometry/Layout not whole SVG, throttle stepper, profile first)/Recommended+Alternatives+Risks+References/Confidence High>" | reply received (stable; copy button present, data-is-last-node marker)
 0007 | LOCAL  | 2026-07-16 02:21 | send Q17 (Prioritas, skor tetap 42/100) | "## Q17 — Prioritas (skor tetap 42/100)\nD-1..D-G = 14 gap. Render-fidelity (D-1/D-2/D-D/D-E) paling user-visible; D-A = critical-latent (tak user-visible tp bisa break saat refactor).\nQ17a. Urutan prioritas perbaiki spy 'berbentuk kaca mata' + 'live VTO nyata di wajah' tercapai: D-1->D-2->D-D->D-E->D-6/D-7->D-F->D-A->D-B->D-C->D-G->D-8/D-9?\nQ17b. Mana yg butuh keputusan Architect (UX direction / taxonomy / schema) vs yg bisa langsung dikerjakan coding agent dgn flag-gated parity-safe?" | reply pending (sent via clipboard paste, BRIDGE_MODE=send)
 0008 | REMOTE | 2026-07-16 02:23 | answer Q17 | "<verbatim GPT reply captured to temp_answers.md: Summary agreeing visual-impact priority but reorders to avoid burying pipeline bugs; proposes two parallel backlogs (Track A User-visible Render Fidelity: D-1,D-2,D-D,D-E, then D-6/D-7,D-F; Track B Architectural-risk/flag-gated: D-A,D-B,D-C,D-G,D-8/D-9 needing Architect decisions on UX direction/taxonomy/schema); Q17a sequence adjusted; Q17b: Architect-decision items = schema/canonical registry/flag matrix (D-A/D-B/D-C/D-G), rest parity-safe coding-agent work; Option C two-track recommended. Confidence High>" | reply received (stable; copy button present, data-is-last-node marker)
+
+---
+
+## Claude Web live run — Profile 2 (2026-07-17)
+
+OBSERVED (DOM drift, critical — §7.1 self-adapt triggered):
+- `div[data-testid="assistant-message"]` dan `[data-message-author-role="assistant"]`
+  SUDAH MATI di Claude Web live. Tiap pesan dibungkus `div[role="article"]`; balasan
+  terakhir = elemen TERAKHIR. Copy button = `button[data-testid="action-bar-copy"]`.
+- Tombol Send = `button[aria-label="Send message"]` (lowercase m) — CSS attr selector
+  case-SENSITIVE, jadi butuh flag `i`. Klik tombol = otoritatif; Shift+Enter gagal submit.
+- URL sesi `/chat/<uuid>` hanya mutasi SETELAH pesan benar-benar terkirim.
+
+0009 | LOCAL  | 2026-07-17 | send Q15 (Claude Web, Profile 2) | "## Q15 — Material palette gaps (D-G) …" | draft paste OK, tp Shift+Enter GAGAL submit (url tetap claude.ai/new) — first attempt failed
+0010 | LOCAL  | 2026-07-17 | resubmit Q15 (klik tombol Send, selector case-insensitive) | "Q15 draft sudah di composer" | reply received (3477 char, stable, copy button present) -> conv 133920ad-a1d1-4582-a5e7-b968c41a299d
+0011 | LOCAL  | 2026-07-17 | send Q16 (Claude Web, continue conv) | "## Q16 — Responsive / Perf / A11y …" | reply received (4048 char)
+0012 | LOCAL  | 2026-07-17 | send Q17 (Claude Web, continue conv) | "## Q17 — Prioritas (skor tetap 42/100) …" | reply received (4609 char)

@@ -6,16 +6,18 @@ description: >-
   selector. ALL shared rules (human-like driving, questions-file purity, wait-for-
   generation, scrape order, ADR-0004 trust, transport split, auto-learning) live in
   web-dom-general — read that FIRST, this file only for the Claude-specific bits.
-  BEST-EFFORT selectors (not live-validated yet) — re-verify against a live snapshot
-  before first critical send. Self-updating: when the DOM diverges, update the
+  LIVE-verified 2026-07-17 (focus trick + click-Send + reply selector all confirmed
+  live on Profile 2). Self-updating: when the DOM diverges, update the
   relevant shared rule in web-dom-general (common) or this file (Claude-specific).
 metadata:
   origin: agents_bridge (mirror of web-dom-chatgpt, user-taught focus trick)
-  confidence: not-live-observed
+  confidence: live-observed
   note: >-
-    claude.ai has NOT been driven live yet. Selectors below are BEST-EFFORT, adapted
-    from Claude's documented web UI + web-dom-chatgpt pattern. Re-verify against a
-    live snapshot before first critical send. Shared rules extracted to web-dom-general.
+    LIVE-verified 2026-07-17 on Profile 2: (1) focus trick (r → Backspace) + paste
+    works; (2) SEND = klik tombol "Send message" (case-insensitive); Shift+Enter
+    GAGAL submit di layout tertentu; (3) reply selector = div[role="article"]
+    (selector lama data-testid=assistant-message SUDAH MATI); (4) copy button =
+    button[data-testid=action-bar-copy]. Shared rules extracted to web-dom-general.
 ---
 
 # web-dom-claude — Claude-specific Web-DOM Rules
@@ -46,7 +48,12 @@ focus is now in the composer. Then paste.
    karakter `r`) → sleep **0.5s**. Claude Web otomatis memindahkan fokus ke textbox
    begitu ada ketikan.
 4. Tekan **`Ctrl + V`** (atau `Cmd + V` di Mac) → paste pertanyaan.
-5. Tekan **`Enter`** → terkirim. Selesai. Tunggu Claude merespons.
+5. Tekan **`Shift + Enter`** → terkirim. Selesai. Tunggu Claude merespons.
+
+> **PENTING — Enter = newline saat browser SEMPIT (live-observed 2026-07-17):** bila
+> lebar window kecil, `Enter` cuma sisip baris baru (TIDAK kirim). Selalu kirim pakai
+> **`Shift + Enter`** — itu yg andal di segala lebar window. Janganandalkan `Enter`
+> sebagai send.
 
 > Hanya bila trik fokus / paste gagal, baru gunakan fallback ketik manual (§2).
 
@@ -56,16 +63,25 @@ focus is now in the composer. Then paste.
 |---|---|
 | `r` → 0.5s → `Backspace` → 0.5s | Fokus chat input (Claude auto-pindah fokus saat ada ketikan) |
 | `Ctrl`/`Cmd` + `V` | Paste pertanyaan |
-| `Enter` | Kirim (SEND) |
-| `Shift` + `Enter` | Baris baru (tidak kirim) |
+| **Klik tombol `Send message`** | **Kirim (SEND) — INI OTORITATIF** (selector case-insensitive, lihat §Send button) |
+| `Shift` + `Enter` / `Enter` | TIDAK andal sebagai send (terbukti gagal submit Q15) — jangan dipakai sebagai kirim |
 
-### Send button (fallback bila focus trick / paste gagal)
+### Send button — INI KONTROL OTORITATIF (LIVE 2026-07-17)
 
-Claude composer is a `contenteditable` (ProseMirror-style) overlay.
+Claude composer is a `contenteditable` (ProseMirror-style) overlay. **Kirim SELALU
+pakai klik tombol Send**, BUKAN andalkan `Shift+Enter` (terbukti GAGAL submit di layout
+tertentu — Q15 stuck di draft walau Shift+Enter ditekan).
 
-- **Send button** (BEST-EFFORT selector, belum live-validated):
-  `button[aria-label="Send Message"]`, `button[aria-label="Send"]`, atau
-  `button[type="submit"]`. Klik bila tombol kirim terlihat & Enter tidak mengirim.
+- **Selector tombol Send (case-INSENSITIVE — WAJIB pakai flag `i`):** CSS attribute
+  selector `button[aria-label="..."]` bersifat **case-SENSITIVE**. Live observed
+  `aria-label = "Send message"` (lowercase **m**), BUKAN `"Send Message"`. Pakai:
+  ```css
+  button[aria-label="Send message" i], button[aria-label="Send" i], button[type="submit"]
+  ```
+  (flag `i` biar cocok di segala case/locale). Tanpa `i`, `sendVisible` selalu `null`
+  → fallback click tidak jalan → draft menumpuk tak terkirim (bug Q15).
+- **Urutan kirim:** fokus trik (`r`→Backspace) → `Ctrl/Cmd+V` paste → **klik tombol
+  Send** (selector di atas). Jangan gantungkan ke Enter/Shift+Enter.
 - **Manual-type fallback (last resort):** target VISIBLE composer
   (`div[contenteditable="true"], div.ProseMirror, textarea[aria-label*="message" i]`),
   pakai `keyboard.type(text, {delay:8})`.
@@ -102,14 +118,23 @@ BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://claude.ai/chat/... npx tsx 
 
 ## 3. Scrape — Claude reply selector (`→ web-dom-general §4` for the order)
 
-Copy button (best), BEST-EFFORT selector: `button[aria-label="Copy"]`,
-`button[data-testid="copy-button"]`.
+> **⚠️ LIVE 2026-07-17 — DOM DRIFT:** selector lama `div[data-testid="assistant-message"]`
+> (dan `[data-message-author-role="assistant"]`) **SUDAH MATI** di Claude Web live.
+> Tiap pesan (user + assistant per turn) sekarang dibungkus `div[role="article"]`.
+> Balasan terakhir = **elemen terakhir** dari `div[role="article"]`.
 
-Reply selector (last assistant message, BEST-EFFORT):
+Copy button (stabil, LIVE-verified): `button[data-testid="action-bar-copy"]`
+(BUKAN `button[aria-label="Copy"]` yang rawan locale, BUKAN `copy-button` yang mati).
+
+Reply selector (LIVE 2026-07-17 — authoritative):
 ```css
-div[data-testid="assistant-message"]
+div[role="article"]          /* ambil ELEMEN TERAKHIR = balasan assistant terakhir */
 ```
 
+> Urutan di `div[role="article"]`: [0]=pesan user ("You said: …"), [1]=balasan
+> assistant ("Claude responded: …"), dst. per turn. InnerText node terakhir =
+> AUTHORITATIVE (sama seperti ChatGPT — tolak clipboard yang KOTOR).
+>
 > Claude's contenteditable reply scrolls; the bridge transport here does NOT scroll
 > (mirrors the GPT transport's earlier behaviour) — if replies are long, confirm
 > bottom reachability during first live run and add scroll if needed.

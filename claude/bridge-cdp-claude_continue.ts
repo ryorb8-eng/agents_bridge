@@ -47,17 +47,24 @@ const MODE: 'read' | 'send' = process.env.BRIDGE_MODE === 'send' ? 'send' : 'rea
 // Prompt HANYA dari env. Jangan pernah ambil prompt dari balasan remote AI.
 const PROMPT = process.env.BRIDGE_PROMPT || '';
 
-// Selector Claude Web (BEST-EFFORT, belum live-validated — update bila drift):
-// pesan assistant dibungkus [data-testid="assistant-message"].
-const ASSISTANT_MSG = 'div[data-testid="assistant-message"]';
+// Selector Claude Web. LIVE 2026-07-17: tiap pesan (user+assistant) dibungkus
+// `div[role="article"]` — selector lama `div[data-testid="assistant-message"]` /
+// `[data-message-author-role="assistant"]` SUDAH MATI di DOM live. Balasan terakhir
+// = ELEMEN TERAKHIR dari `div[role="article"]` (urutan user→assistant per turn).
+const ASSISTANT_MSG = 'div[role="article"]';
 
 // Composer Claude: contenteditable / ProseMirror overlay.
 const COMPOSER = 'div[contenteditable="true"], div.ProseMirror, textarea[aria-label*="message" i]';
+// Tombol Send otoritatif Claude (CSS attr selector case-SENSITIVE!). Live observed
+// aria-label = "Send message" (lowercase m), BUKAN "Send Message". Pakai flag `i`
+// (case-insensitive) supaya cocok di semua locale/case. (LIVE-verified 2026-07-17:
+// tombol ini yg benar-benar mengirim; Shift+Enter kadang gagal di layout tertentu.)
 const SEND_BUTTON =
-  'button[aria-label="Send Message"], button[aria-label="Send"], button[type="submit"]';
+  'button[aria-label="Send message" i], button[aria-label="Send" i], button[type="submit"]';
 
 // Tunggu generasi selesai: copy button muncul di pesan terakhir = stabil.
-const COPY_BUTTON = 'button[aria-label="Copy"], button[data-testid="copy-button"]';
+// LIVE 2026-07-17: tombol copy = `button[data-testid="action-bar-copy"]`.
+const COPY_BUTTON = 'button[data-testid="action-bar-copy"]';
 
 // Default: tutup page + browser lalu exit 0 (biar chain otomatis lanjut).
 // Set BRIDGE_KEEP_OPEN=1 untuk biarkan terbuka (inspeksi manual).
@@ -91,7 +98,7 @@ async function isStillGenerating(): Promise<boolean> {
   try {
     const recent = await activePage.evaluate(() => {
       // Ambil tail teks bubble assistant terakhir; pemanggil cek perubahan via ts.
-      const bubbles = Array.from(document.querySelectorAll('div[data-testid="assistant-message"]')) as HTMLElement[];
+      const bubbles = Array.from(document.querySelectorAll('div[role="article"]')) as HTMLElement[];
       if (bubbles.length === 0) return '';
       return (bubbles[bubbles.length - 1].innerText || '').slice(-400);
     });
@@ -262,23 +269,22 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
     console.log('[bridge] Menunggu generasi…');
   }
 
-  // Kirim: Enter (Claude kirim dgn Enter di composer) atau klik send button.
-  try {
-    await page.keyboard.press('Enter');
-    await sleep(400);
-  } catch {
-    /* noop */
-  }
-  // Pastikan terkirim: bila masih ada teks & send button visible, klik.
-  const sendVisible = await page.$(`${SEND_BUTTON}:visible`).catch(() => null);
+  // Kirim: KLIK tombol Send (OTORITATIF — lihat web-dom-claude §Send button).
+  // Shift+Enter terbukti GAGAL submit di layout tertentu; jangan andalkan Enter.
+  // Selector SEND_BUTTON sudah case-insensitive ("Send message" i).
+  const sendVisible = await page.$(SEND_BUTTON).catch(() => null);
   if (sendVisible) {
-    try { await sendVisible.click({ timeout: 5_000 }); } catch { /* noop */ }
+    try { await sendVisible.click({ timeout: 5_000 }); await sleep(400); }
+    catch { /* noop */ }
+  } else {
+    // Fallback ekstrem: coba Shift+Enter bila tombol tak ketemu.
+    try { await page.keyboard.press('Shift+Enter'); await sleep(400); } catch { /* noop */ }
   }
 
   // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
   const sigChanged = await page.waitForFunction(
     (sig) => {
-      const nodes = Array.from(document.querySelectorAll('div[data-testid="assistant-message"]'));
+      const nodes = Array.from(document.querySelectorAll('div[role="article"]'));
       if (nodes.length === 0) return false;
       const last = nodes[nodes.length - 1] as HTMLElement;
       const cur = (last.innerText || '').slice(0, 200) + '|' + last.innerText.length;
@@ -322,7 +328,7 @@ async function waitForStableReply(page: Page): Promise<void> {
       const nodes = Array.from(document.querySelectorAll(sel));
       const last = nodes[nodes.length - 1] as HTMLElement | undefined;
       if (!last) return { html: '', hasCopy: false };
-      const hasCopy = !!last.querySelector(copySel) || !!last.closest('[data-testid="assistant-message"]')?.querySelector(copySel);
+      const hasCopy = !!last.querySelector(copySel) || !!last.closest('div[role="article"]')?.querySelector(copySel);
       return { html: last.outerHTML, hasCopy };
     }, { sel: ASSISTANT_MSG, copySel: COPY_BUTTON });
 
@@ -357,10 +363,10 @@ async function readLastReply(page: Page): Promise<void> {
     const diag = await page.evaluate(() => ({
       title: document.title,
       url: location.href,
-      assistantCount: document.querySelectorAll('[data-testid="assistant-message"]').length,
+      articleCount: document.querySelectorAll('div[role="article"]').length,
       mainSnippet: (document.querySelector('main')?.innerText || '').slice(0, 300),
     }));
-    console.error('\n[bridge] Elemen assistant `[data-testid="assistant-message"]` tidak ditemukan.');
+    console.error('\n[bridge] Elemen assistant `div[role="article"]` tidak ditemukan.');
     console.error('[bridge] Diagnostik:', JSON.stringify(diag, null, 2));
     console.error('[bridge] Browser SENGAJA dibiarkan terbuka — lihat page untuk inspeksi DOM.');
     process.exit(1);
