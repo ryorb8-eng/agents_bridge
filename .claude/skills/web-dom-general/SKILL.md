@@ -205,3 +205,24 @@ Contoh temuan yang wajib langsung disimpan (bukan ditunda): *readLastReply harus
 `[data-message-author-role="assistant"]` terakhir (innerText) sebagai **authoritative**,
 dan **TOLAK clipboard sebagai sumber utama** (terbukti kotor di Win11). Tombol
 "Salin respons" cukup sebagai aksi konfirmasi, bukan sumber teks.*
+
+### 7.3 Score efektifitas metode per-vendor → naik-kelas prioritas
+
+Setiap `web-dom-<remote>` memelihara **SCORE efektifitas** untuk tiap metode capture
+(lihat urutan di §4) berdasarkan hasil run nyata. Tujuannya: urutan prioritas di §4
+bukan statis, tapi **self-tuning** — metode yang lebih sering sukses naik kelas.
+
+- **Mekanisme (per vendor, di skill `web-dom-<remote>`):**
+  - Simpan tabel skor ringkas di skill vendor, mis.
+    `| metode | sukses | gagal | rate | prioritas |`.
+  - Tiap run transport: `tester` / driver catat hasil tiap metode yang dicoba
+    (sukses/gagal + alasan). Update skor di skill (bukan cuma di intisari).
+  - Bila metode X **lebih sering berhasil** daripada metode di atasnya, **PINDAHKAN**
+    urutan prioritasnya (X naik kelas). Contoh: bila `innerText` terbukti konsisten
+    menang vs clipboard, `innerText` jadi #1 (sudah dilakukan untuk ChatGPT).
+  - Skor di-reset/di-review bila ada **DOM drift** (§7.1) — jangan naikkan metode yang
+    cuma kebetulan berhasil di DOM lama.
+- **Jangan simpan skor sebagai tebakan.** Hanya update dari run yang **terukur**
+  (replyChars>0 = sukses; timeout/throw = gagal). Hipotesis tanpa run = tidak dihitung.
+- Berlaku ke **SEMUA** vendor (`web-dom-chatgpt` / `web-dom-claude` / `web-dom-z` / lainnya).
+  §4 di sini adalah default; skor aktual & urutan final ada di skill masing-masing.

@@ -144,6 +144,35 @@ Reply container (last assistant message) — pakai INI sebagai anchor innerText:
 [data-message-author-role="assistant"]
 ```
 
+### 3.1 Deteksi "GPT masih menjawab" — STOP button (`→ web-dom-general §3`)
+
+Untuk tahu apakah GPT **MASIH** generate, cek tombol **STOP** di composer. Selama tombol
+ini ada → GPT belum selesai. Tombol ini **LOCALE-AWARE** (`aria-label` ikut bahasa UI):
+
+- id → `aria-label="Hentikan jawaban"`
+- en → `aria-label="Stop answering"`
+
+```html
+<!-- id -->
+<button id="composer-submit-button" aria-label="Hentikan jawaban"
+        data-testid="stop-button" class="composer-submit-btn ...">…</button>
+
+<!-- en -->
+<button id="composer-submit-button" aria-label="Stop answering"
+        data-testid="stop-button" class="composer-submit-btn ...">…</button>
+```
+
+**Anchor stabil lintas-bahasa = `button[data-testid="stop-button"]`** (teks `aria-label`
+berubah ikut locale — jangan di-hardcode). Aturan:
+
+- `document.querySelector('button[data-testid="stop-button"]')` **ADA** → GPT masih
+  menjawab → **JANGAN** capture, tunggu sampai tombol hilang.
+- Tombol **HILANG** → GPT selesai → aman capture (lalu verifikasi stabil via §3 poin 1).
+- Ini lebih andal dari cuma cek spinner/copy-button (Stop button eksplisit = state
+  "generating" dari ChatGPT sendiri). Gabungkan dengan §3 (copy button muncul + no
+  growth) sebagai double-confirm.
+
+
 
 ---
 
@@ -196,3 +225,21 @@ can also do Vision via their own `_new.ts`; GPT is the canonical example.)
 
 If ChatGPT's UI changes ≥3× in a day, add the ⚠️ **DOM Dinamis** banner here (top of
 file) and re-verify selectors against a live snapshot before each critical action.
+
+---
+
+## 7. Score efektifitas metode capture (`→ web-dom-general §7.3`)
+
+Tabel skor per-metode (di-update tiap run terukur; lihat §7.3 global). Urutan prioritas
+§3 di atas **self-tuning** dari sini.
+
+| metode (§4) | sukses | gagal | rate | prioritas | catatan |
+|---|---|---|---|---|---|
+| `innerText` node assistant terakhir | ✅ terbukti (6528 char) | — | tinggi | **#1** | AUTHORITATIVE; anti-clipboard-kotor |
+| tombol copy (`Salin respons`/`Copy response`) | konfirmasi | — | — | #2 | hanya verifikasi, BUKAN sumber teks |
+| turndown (outerHTML→md) | belum divalidasi | — | ? | #3 | masih commented di transport |
+| Ctrl+A / Ctrl+C | rawan kotor | — | rendah | #4 | RESORT terakhir |
+
+**Naik-kelas:** bila metode di bawah terbukti lebih sering sukses dari atasnya (via run
+nyata, bukan tebakan), pindahkan urutannya. Skor di-reset bila ada DOM drift (§7.1).
+
