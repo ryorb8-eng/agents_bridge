@@ -61,6 +61,13 @@ const KEEP_OPEN = process.env.BRIDGE_KEEP_OPEN === '1';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Waktu tunggu sebelum capture URL sesi ke .log (SETELAH pesan PERTAMA dikirim).
+// 2 detik cukup agar URL homepage sudah mutasi jadi URL conversation (/c/<uuid>).
+// Capture INI HARUS sebelum refresh (F5): bila refresh di homepage, ChatGPT buka
+// chat BARU & sesi hilang (loop tanpa dapat jawaban). URL yg tercatat di sini dipakai
+// utk RE-OPEN sebagai pengganti refresh. Override via BRIDGE_SESSION_CAPTURE_DELAY_MS.
+const SESSION_CAPTURE_DELAY_MS = Number(process.env.BRIDGE_SESSION_CAPTURE_DELAY_MS || 2000);
+
 // Global watchdog: jangan biarkan proses menggantung (mis. chatgpt login wall,
 // networkidle timeout, halaman mati). Force-exit jika lewat HARD_TIMEOUT.
 // Tanpa ini, chain otomatis (/webchain-gpt) bisa stuck tanpa error.
@@ -168,6 +175,31 @@ async function logConversation(opts: {
   } catch (e) {
     console.warn('[bridge] Gagal tulis conv log:', (e as Error).message);
   }
+}
+
+/**
+ * Capture URL sesi AWAL ke .log, tepat setelah pesan pertama dikirim.
+ *
+ * PENTING: ChatGPT (dan semua vendor baru) mengubah URL homepage -> URL conversation
+ * (/c/<uuid>) BEBERAPA DETIK setelah pesan pertama dikirim. URL itu HARUS tercatat
+ * SEBELUM refresh (F5): bila nanti perlu refresh, buka URL ini kembali sebagai
+ * pengganti F5 — refresh di homepage justru membuka chat BARU & menghilangkan jejak
+ * sesi (loop tanpa pernah dapat balasan).
+ *
+ * Helper ini fire-and-forget (await di call-site), jangan gagalkan run bila gagal.
+ */
+async function captureSessionUrl(page: Page, opts: {
+  profile?: string;
+  promptChars: number;
+}): Promise<void> {
+  await sleep(SESSION_CAPTURE_DELAY_MS);
+  const url = page.url();
+  const id = extractConvId(url);
+  console.log(`[bridge] Capture URL sesi (${SESSION_CAPTURE_DELAY_MS}ms stlh kirim): ${url}`);
+  if (!id) {
+    console.warn('[bridge] URL belum berubah jadi conversation (/c/<uuid>) — mungkin rate-limit / login wall. Cek .log nanti.');
+  }
+  await logConversation({ page, mode: 'send', promptChars: opts.promptChars, pageOwned: false, profile: opts.profile });
 }
 
 (async () => {
@@ -330,6 +362,13 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
   } else {
     console.log('[bridge] Menunggu generasi…');
   }
+
+  // === CAPTURE URL SESI AWAL (2s stlh pesan pertama) — SEBELUM refresh ===
+  // Simpan URL homepage -> /c/<uuid> ke .log agar bisa di-reopen sbg pengganti F5.
+  // Jangan tunggu sampai akhir run (akhir run URL sdh benar, tapi kita butuh CAPTURE
+  // DINI sebelum ada refresh yg bisa kehilangan sesi).
+  const PROFILE_SEND = process.env.BRIDGE_PROFILE || 'Profile 14';
+  await captureSessionUrl(page, { profile: PROFILE_SEND, promptChars: PROMPT.length });
 
   // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
   // (Tidak pakai hitungan node — ChatGPT bisa mengganti node terakhir.)

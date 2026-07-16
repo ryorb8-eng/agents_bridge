@@ -1,7 +1,7 @@
 ---
 name: web-dom-general
 description: >-
-  SHARED web-DOM rules for ALL bridge remotes (ChatGPT, Claude Web, Z). Single
+  SHARED web-DOM rules for ALL bridge remotes (ChatGPT, Claude Web, Z, Gemini). Single
   source of truth for human-like driving, the temp_questions_single.md purity rule,
   wait-for-generation, the scrape order, the ADR-0004 trust boundary, the transport
   split (new vs continue), and the auto-learning / "DOM Dinamis" flag. Each
@@ -106,6 +106,24 @@ do NOT scrape raw source code (too complex / brittle).
 
 The per-remote reply selector (last assistant message) is documented in
 `web-dom-<remote>` §Scrape — not duplicated here.
+
+### 4.1 CAPTURE URL SESI SEBELUM REFRESH (wajib di `*_new.ts`)
+
+Setiap transport `*_new.ts` (chat baru: ChatGPT / Claude / Z / Gemini) HARUS
+mencatat URL sesi ke `web-bridge-<remote>.log` **tepat 2 detik SETELAH pesan
+PERTAMA dikirim** — SEBELUM ada refresh (F5).
+
+- Vendor ubah URL homepage → URL conversation (`/c/<uuid>`, `/chat/<uuid>`,
+  `/app/<uuid>`) BEBERAPA DETIK setelah pesan pertama. URL itu = satu-satunya
+  jejak sesi.
+- Bila nanti perlu refresh, **BUKA URL itu kembali** sebagai pengganti F5. Refresh
+  di homepage justru membuka chat BARU → sesi + jejak hilang → chain LOOP tanpa
+  pernah dapat balasan.
+- Implementasi: helper `captureSessionUrl(page, {profile, promptChars})` yang
+  `sleep(SESSION_CAPTURE_DELAY_MS=2000)` lalu `logConversation(...)` (mode `send`).
+  Delay override via `BRIDGE_SESSION_CAPTURE_DELAY_MS`. Dipanggil di
+  `sendAndWaitForReply` SETELAH send, SEBELUM menunggu balasan stabil.
+- `.log` baris ini punya `url` + `convId` → agent/subagent baca untuk reopen.
 
 ---
 

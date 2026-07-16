@@ -29,6 +29,12 @@
 - **Import dirs (terpisah dari gpt/claude/z):** `Geometry_Engine/gemini_questions_import/` + `gemini_answers_import/` (README + scaffold: `by_date/17-07-2026/`, `temp_questions_all.md`, `temp_questions_single.md` (purity), `log_questions_17-07-2026.md`, `temp_answers.md`, `temp_knowledges/`, `bank_knowledges/`).
 - **Wiring:** `list_profil_vendor.md` §1 (Profile 2 + Gemini), §2 (URL↔profil Gemini), §3 (log), `AGENTS.md PHASE 0.5` pengecualian Gemini=Profile 2, `tsconfig.json` include 2 gemini transport. `tsc --noEmit` PASS.
 
+## [2026-07-17] Kendala *_new.ts: capture URL sesi SEBELUM refresh (F5)
+- **BUG:** refresh (F5) di homepage `*_new.ts` membuka chat BARU → sesi + jejak URL hilang → chain LOOP tanpa pernah dapat capture jawaban.
+- **FIX (wajib, terapkan ke semua `*_new.ts` gpt/claude/z/gemini):** transport HARUS catat URL sesi ke `web-bridge-<remote>.log` **tepat 2 detik SETELAH pesan PERTAMA dikirim** (sebelum ada refresh). Vendor mutasi URL homepage → `/c|chat|app/<uuid>` beberapa detik setelah send; URL itu = satu-satunya jejak sesi. Bila perlu refresh, **RE-OPEN URL itu** sbg pengganti F5 (jangan F5 di homepage).
+- **Implementasi:** helper `captureSessionUrl(page, {profile, promptChars})` → `sleep(SESSION_CAPTURE_DELAY_MS=2000)` → `logConversation(...)` (mode `send`, pageOwned:false). Delay override `BRIDGE_SESSION_CAPTURE_DELAY_MS`. Dipanggil di `sendAndWaitForReply` SETELAH send, SEBELUM `waitForStableReply`. `.log` baris punya `url`+`convId`.
+- **Rule global:** tulis ke `web-dom-general §4.1` (capture URL sesi sebelum refresh). `tsc --noEmit` PASS.
+
 ## [2026-07-17 11:30] User address / protocol notes (MASTER)
 - Panggil user **"MASTER"**.
 - MASTER buka/tutup akses SSH secara manual (plain ↔ scoped) saat butuh. Saat scoped, agent TIDAK bisa tulis file bebas (termasuk `C:\Users\ryoro\.ssh\authorized_keys2`) — benar-benar read/gatekeeper-only.
