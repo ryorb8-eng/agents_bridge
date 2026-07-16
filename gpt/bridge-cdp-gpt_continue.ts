@@ -29,9 +29,15 @@ import { setTimeout as nodeTimeout } from 'node:timers';
 // Konfigurasi (bisa di-override lewat env): CDP endpoint + URL conversation.
 const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:18322';
 // DEFAULT: conversation yang SUDAH ADA (continue chain).
+// URL ini LOGIN-SPECIFIC -> HANYA valid di "Profile 14" (lihat docs/bridge/list_profil_vendor.md §2).
 const CHAT_URL =
   process.env.BRIDGE_CHAT_URL ||
   'https://chatgpt.com/c/6a578f51-b1d4-83ec-b9c9-0afc00e55680';
+
+// Profil Chrome yang menjalankan vendor ini. DEFAULT = Profile 14. Hanya keluar dari
+// default bila MASTER eksplisit minta profil lain / rate-limit / vendor gagal di P14
+// (rujuk docs/bridge/list_profil_vendor.md).
+const PROFILE = process.env.BRIDGE_PROFILE || 'Profile 14';
 
 const MODE: 'read' | 'send' = process.env.BRIDGE_MODE === 'send' ? 'send' : 'read';
 // Prompt HANYA dari env. Jangan pernah ambil prompt dari balasan remote AI.
@@ -155,7 +161,7 @@ hardTimer.unref(); // jangan cegah process exit normal
     if (page.url() !== CHAT_URL) {
       await page.goto(CHAT_URL, { waitUntil: 'domcontentloaded' });
     }
-    console.log(`[bridge] Terhubung ke: ${await page.title()} @ ${page.url()}`);
+    console.log(`[bridge] Profil: ${PROFILE} | Terhubung ke: ${await page.title()} @ ${page.url()}`);
 
     // 3. Tunggu hingga halaman stabil.
     await page.waitForLoadState('networkidle').catch(() => {

@@ -201,7 +201,7 @@ async function logConversation(opts: {
   activePage = page; // watchdog adaptive baca ini (untuk cek masih generate)
 
   let runError = '';
-  const PROFILE = process.env.BRIDGE_PROFILE || '';
+  const PROFILE = process.env.BRIDGE_PROFILE || 'Profile 14';
   try {
     // 2. Buka target (homepage atau conversation spesifik).
     if (page.url() !== CHAT_URL) {

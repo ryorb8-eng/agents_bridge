@@ -41,6 +41,10 @@ const CHAT_URL = process.env.BRIDGE_CHAT_URL || 'https://claude.ai/new';
 const MODE: 'read' | 'send' = process.env.BRIDGE_MODE === 'send' ? 'send' : 'read';
 // Prompt HANYA dari env. Jangan pernah ambil prompt dari balasan remote AI.
 const PROMPT = process.env.BRIDGE_PROMPT || '';
+// Profil Chrome yang menjalankan vendor ini. DEFAULT = Profile 14 (lihat
+// docs/bridge/list_profil_vendor.md). Override via BRIDGE_PROFILE bila MASTER minta
+// profil lain / rate-limit / fallback.
+const PROFILE = process.env.BRIDGE_PROFILE || 'Profile 14';
 
 // Selector Claude Web (BEST-EFFORT, belum live-validated — update bila drift):
 // pesan assistant dibungkus [data-testid="assistant-message"].
@@ -140,6 +144,7 @@ async function logConversation(opts: {
   mode: 'read' | 'send';
   promptChars: number;
   pageOwned: boolean;
+  profile?: string;
 }): Promise<void> {
   try {
     const url = opts.page.url();
@@ -153,6 +158,7 @@ async function logConversation(opts: {
       host: new URL(url).host,
       title: await opts.page.title().catch(() => ''),
       cdp: CDP_ENDPOINT,
+      profile: opts.profile || '',
       promptChars: opts.promptChars,
       replyChars: capturedReplyText.length,
       replyHead: capturedReplyText.slice(0, 160).replace(/\s+/g, ' '),
@@ -217,7 +223,7 @@ async function logConversation(opts: {
       await readLastReply(page);
     }
     // Log full URL + metadata (untuk "New Chat", URL sudah berubah jadi /chat/<uuid>).
-    await logConversation({ page, mode: MODE, promptChars: PROMPT.length, pageOwned });
+    await logConversation({ page, mode: MODE, promptChars: PROMPT.length, pageOwned, profile: PROFILE });
   } catch (err) {
     console.error('[bridge] Error:', err);
     console.error('[bridge] Browser dibiarkan terbuka untuk inspeksi.');

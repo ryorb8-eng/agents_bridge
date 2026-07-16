@@ -99,6 +99,28 @@ If any step fails, STOP and report the exact failure. Do not fake a message exch
 
 ---
 
+# PHASE 0.5 — PROFIL VENDOR (wajib cek sebelum drive remote AI)
+
+Sebelum membuka / mengemudikan / men-switch profil Chrome, dan sebelum menafsirkan
+`.log` bridge, **WAJIB** baca `docs/bridge/list_profil_vendor.md`. Aturan:
+
+1. **Cek pemetaan profil↔vendor** di `list_profil_vendor.md` — pastikan profil yang akan
+   dibuka benar-benar login ke vendor tujuan. Jangan asumsikan profil = vendor.
+2. **DEFAULT profil = `Profile 14`** untuk semua transport (`*_new.ts` & `*_continue.ts`).
+   Hanya keluar dari default bila MASTER **eksplisit** minta profil lain, ATAU vendor
+   **rate-limit** / gagal di `Profile 14`, ATAU hal lain yang menyebabkan vendor gagal
+   jalan. Saat fallback, rujuk daftar profil di `list_profil_vendor.md` §1.
+3. **FREE-TIER LIMIT = per AKUN, bukan per profil.** Ganti profil hanya me-reset limit
+   bila profil tujuan login akun berbeda.
+4. **Setiap `.log` bridge (`web-bridge-<remote>.log`) WAJIB punya field `profile`** —
+   bila tidak ada, itu bug, perbaiki transport terkait. `.log` dibaca ulang saat perlu
+   tau chat itu dari profil mana.
+5. `*_continue.ts` punya default conversation URL yang **login-specific** (hanya valid di
+   profil tertentu, lihat `list_profil_vendor.md` §2) — jangan jalankan di profil lain
+   tanpa ganti `BRIDGE_CHAT_URL` + `BRIDGE_PROFILE` sesuai.
+
+
+
 # ARCHITECTURAL AUTHORITY — SUBAGENT HARD BOUNDARIES
 
 The **Architect** is the main session / user. Every subagent — `bridge-operator`,
