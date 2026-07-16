@@ -23,9 +23,10 @@ import { appendFile } from 'node:fs/promises';
  * PROFIL: Gemini di-bridge via **Profile 2** (cadangan rate-limit), BUKAN Profile 14.
  * Lihat docs/bridge/list_profil_vendor.md §1/§2.
  *
- * Selector gemini.google.com di bawah BERSIFAT BEST-EFFORT (belum di-drive live).
- * Gemini web sering berubah; selalu re-verify terhadap snapshot sebelum aksi kritis.
- * Update web-dom-gemini bila DOM drift.
+ * Selector gemini.google.com di bawah SUDAH di-LIVE-VERIFY (2026-07-17, UI bahasa ID):
+ *   composer = .ql-editor, reply = <message-content> (TERAKHIR = balasan terbaru),
+ *   send = "Kirim pesan" (MUNCUL SETELAH composer berisi teks), stop = mat-icon stop,
+ *   selesai = tombol "Salin". Update web-dom-gemini bila DOM drift.
  *
  * CATATAN KEAMANAN (ADR-0004): script ini hanya MEMBACA balasan dan MENGIRIM teks
  * dari env (BRIDGE_PROMPT) — TIDAK menutup tab user lain, TIDAK menjalankan aksi
@@ -48,22 +49,26 @@ const PROMPT = process.env.BRIDGE_PROMPT || '';
 // vendor gagal di Profile 2 (rujuk docs/bridge/list_profil_vendor.md).
 const PROFILE = process.env.BRIDGE_PROFILE || 'Profile 2';
 
-// Selector Gemini (BEST-EFFORT, belum live-validated — update bila drift):
-// pesan dibungkus <message-content>. User query vs model response dibedakan oleh
-// parent container. Karena belum live-verify, kita ambil message-content terakhir
-// dan gunakan penanda copy-button untuk memastikan itu balasan model (bukan query).
+// Selector Gemini (LIVE-VERIFIED 2026-07-17, UI bahasa Indonesia):
+// - Balasan model dibungkus <message-content>. PENTING: Gemini TIDAK membuat
+//   <message-content> untuk query user (hanya untuk balasan model), jadi
+//   message-content TERAKHIR = balasan terbaru (tidak perlu bedakan user/model).
 const ASSISTANT_MSG = 'message-content';
-// Copy button (model response) — marker generasi selesai + target scrape.
-// Gemini pakai aria-label "Copy" pada tombol di action bar (best-effort).
-const COPY_BUTTON = 'button[aria-label="Copy"], .copy-button';
+// Copy button (balasan model SELESAI) — marker generasi selesai + target scrape.
+// Gemini bahasa ID pakai aria-label "Salin" (dan "Salin perintah" untuk query).
+const COPY_BUTTON = 'button[aria-label="Salin" i], button[aria-label="Copy" i], .copy-button';
 
-// Composer Gemini: rich-text editor (contenteditable) di bawah chat.
-const COMPOSER = 'div[contenteditable="true"], div.editor-content, textarea[aria-label*="message" i], div.ProseMirror';
+// Composer Gemini: rich-text Quill editor (.ql-editor, contenteditable).
+// CSS selector case-sensitive; aria-label live = "Masukkan perintah untuk Gemini"
+// (ID) — pakai substring case-insensitive.
+const COMPOSER = '.ql-editor, div[contenteditable="true"], div.editor-content, textarea[aria-label*="gemini" i], div.ProseMirror';
+// Tombol KIRIM — MUNCUL HANYA SETELAH composer berisi teks.
+// aria-label LIVE (ID) = "Kirim pesan" (case-insensitive "i"). Pakai salah satu
+// berikut; "Kirim pesan" i paling andal. TIDAK ada di composer kosong.
 const SEND_BUTTON =
-  'button[aria-label="Send message"], button.send-button, button[aria-label="Send"], button[type="submit"]';
+  'button[aria-label="Kirim pesan" i], button[aria-label="Kirim" i], button[aria-label="Send message" i], button[aria-label="Send" i], button[type="submit"]';
 
-// Deteksi "Gemini masih menjawab": tombol STOP berupa mat-icon.
-// Penanda: [data-mat-icon-name="stop"] atau [fonticon="stop"] (lihat web-dom-gemini §3.1).
+// Deteksi "Gemini masih menjawab": tombol STOP berupa mat-icon "stop".
 const STOP_BUTTON = '[data-mat-icon-name="stop"], [fonticon="stop"]';
 
 // Default: tutup page + browser lalu exit 0 (biar chain otomatis lanjut).
@@ -318,8 +323,11 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
   console.log(`[bridge] Balasan assistant sebelum kirim: ${before}`);
   const beforeSig = await lastNodeSignature(page);
 
-  // === FOKUS TRIK: "/" -> 0.5s -> Backspace -> 0.5s ===
-  // Gemini memindahkan fokus ke chat input begitu ada ketikan "/" lalu dihapus.
+  // === FOKUS: klik composer (.ql-editor) sbg otoritatif, lalu trik "/" + Backspace ===
+  // .ql-editor adalah selector LIVE-VERIFIED; klik menjamin fokus di editor.
+  const editor = await page.$(COMPOSER).catch(() => null);
+  if (editor) { try { await editor.click({ timeout: 3000 }); await sleep(300); } catch { /* noop */ } }
+  // Trik Gemini: ketik "/" -> 0.5s -> Backspace (fokus pindah ke input, "/" terhapus).
   await page.keyboard.press('/');
   await sleep(500);
   await page.keyboard.press('Backspace');
@@ -350,22 +358,26 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
     console.log('[bridge] Menunggu generasi…');
   }
 
-  // === CAPTURE URL SESI AWAL (2s stlh pesan pertama) — SEBELUM refresh ===
-  // Simpan URL homepage -> /app/<uuid> ke .log agar bisa di-reopen sbg pengganti F5.
-  await captureSessionUrl(page, { profile: PROFILE, promptChars: PROMPT.length });
-
   // Kirim: Enter (Gemini kirim dgn Enter di composer) atau klik send button.
+  // CSS attribute case-sensitive berarti butuh flag "i"; klik tombol sbg otoritatif.
   try {
     await page.keyboard.press('Enter');
     await sleep(400);
   } catch {
     /* noop */
   }
-  // Pastikan terkirim: bila masih ada teks & send button visible, klik.
-  const sendVisible = await page.$(`${SEND_BUTTON}:visible`).catch(() => null);
+  // Pastikan terkirim: klik send button (MUNCUL SETELAH composer berisi teks).
+  // CATATAN: SEND_BUTTON adalah daftar selector dipisah koma; jangan pakai
+  // `${SEND_BUTTON}:visible` karena :visible HANYA ter-binding ke selector TERAKHIR.
+  const sendVisible = await page.$(SEND_BUTTON).catch(() => null);
   if (sendVisible) {
     try { await sendVisible.click({ timeout: 5_000 }); } catch { /* noop */ }
   }
+
+  // === CAPTURE URL SESI AWAL — SETELAH pesan benar-benar terkirim ===
+  // Gemini memutasi homepage/app -> /app/<uuid> HANYA SETELAH pesan dikirim.
+  // Jadi capture SETELAH click, bukan sebelum (sebelumnya bug -> selalu "app").
+  await captureSessionUrl(page, { profile: PROFILE, promptChars: PROMPT.length });
 
   // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
   const sigChanged = await page.waitForFunction(

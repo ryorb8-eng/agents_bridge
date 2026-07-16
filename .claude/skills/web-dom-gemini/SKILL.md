@@ -6,19 +6,21 @@ description: >-
   Backspace), send button, reply selector, and STOP-button detection. ALL shared
   rules (human-like driving, questions-file purity, wait-for-generation, scrape
   order, ADR-0004 trust, transport split, auto-learning) live in web-dom-general —
-  read that FIRST, this file only for the Gemini-specific bits. NOT yet live-verified
-  (best-effort selectors). Self-updating: when the DOM diverges, update the relevant
-  shared rule in web-dom-general (common) or this file (Gemini-specific).
+  read that FIRST, this file only for the Gemini-specific bits. LIVE-VERIFIED
+  2026-07-17 (UI bahasa Indonesia, Profile 2). Self-updating: when the DOM diverges,
+  update the relevant shared rule in web-dom-general (common) or this file (Gemini-specific).
 metadata:
   origin: agents_bridge (mirror of web-dom-chatgpt / web-dom-claude / web-dom-z)
-  confidence: not-live-observed
+  confidence: live-observed
   note: >-
-    Selectors are BEST-EFFORT (Gemini web UI changes often; not driven live yet).
-    Gemini focus trick = press "/" then Backspace (auto-focuses chat input). Gemini
-    reply nodes are <message-content>; STOP while generating is a mat-icon
-    [data-mat-icon-name="stop"] / [fonticon="stop"]. Profile 2 (rate-limit backup).
-    Shared rules extracted to web-dom-general. VERIFY live before any critical action
-    and update this file if the DOM drifts.
+    LIVE-VERIFIED 2026-07-17 (ID UI, Profile 2): (1) composer = .ql-editor
+    (contenteditable, aria-label "Masukkan perintah untuk Gemini"); (2) SEND button =
+    button[aria-label="Kirim pesan" i] — MUNCUL HANYA SETELAH composer berisi teks
+    (empty composer → sendBtn tidak ada, itulah kenapa probe pra-tipe lihat sendBtn:false);
+    (3) reply = <message-content>, node TERAKHIR = balasan terbaru — Gemini TIDAK render
+    query user sbg message-content, jadi last = latest model reply; (4) done/copy = "Salin"
+    (ID) / "Copy"; (5) STOP = [data-mat-icon-name="stop"]; (6) session URL mutasi
+    app → app/<uuid> SETELAH send (capture SETELAH kirim, bukan sebelum).
 ---
 
 # web-dom-gemini — Gemini-specific Web-DOM Rules
@@ -35,9 +37,9 @@ metadata:
 Lihat `docs/bridge/list_profil_vendor.md` §1/§2. Pastikan Profile 2 sudah login Gemini
 sebelum menjalankan chain.
 
-**⚠️ BEST-EFFORT (not live-verified):** selector di bawah BELUM di-drive live. Gemini
-sering ubah DOM — selalu re-verify terhadap `snapshot` sebelum aksi kritis, lalu update
-file ini bila drift.
+**✅ LIVE-VERIFIED 2026-07-17 (UI bahasa Indonesia, Profile 2).** Selector di bawah sudah
+di-drive live lewat 3 pertanyaan berurutan di satu new chat (Q1/Q2/Q3 terverifikasi
+balasan tersimpan). Gemini sering ubah DOM — bila drift, re-verify lalu update file ini.
 
 ---
 
@@ -67,11 +69,13 @@ file ini bila drift.
 
 ### Send button (fallback bila focus / paste gagal)
 
-- **Send button** (BEST-EFFORT): `button[aria-label="Send message"]` / `.send-button`.
-  Klik bila terlihat & `Enter` tidak mengirim.
-- **Manual-type fallback (last resort):** target VISIBLE composer
-  (`div[contenteditable="true"]` / `textarea[aria-label*="message" i]`), pakai
-  `keyboard.type(text, {delay:8})`.
+- **Send button (LIVE-VERIFIED):** `button[aria-label="Kirim pesan" i]` (UI ID) /
+  `button[aria-label="Send message" i]`. Klik sbg otoritatif SETELAH composer berisi teks.
+  ⚠️ Tombol ini **TIDAK ADA** di composer kosong — baru muncul setelah ada teks. Jangan
+  cek eksistensi send button SEBELUM mengetik (itulah kenapa probe pra-tipe lihat sendBtn:false).
+- **Enter juga kirim** bila fokus di composer (tapi klik tombol lebih andal).
+- **Manual-type fallback (last resort):** target VISIBLE composer (`.ql-editor` /
+  `div[contenteditable="true"]`), pakai `keyboard.type(text, {delay:6})`.
 - **Stuck / not sending?** Hard refresh (`Shift+F5`, atau `F5`), lalu re-attach &
   re-locate composer (DOM reset).
 
@@ -105,17 +109,19 @@ BRIDGE_PROFILE="Profile 2" BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://
 
 ## 3. Scrape — Gemini reply selector (`→ web-dom-general §4` for the order)
 
-Copy button (BEST-EFFORT): `button[aria-label="Copy"]` / `.copy-button` (di action bar
-balasan model).
+Copy button (LIVE-VERIFIED): `button[aria-label="Salin" i]` / `button[aria-label="Copy" i]`
+(di action bar balasan model, UI ID = "Salin").
 
-Reply selector (last assistant message, BEST-EFFORT):
+Reply selector (last assistant message, LIVE-VERIFIED):
 ```css
-/* Gemini membungkus tiap pesan dalam <message-content>; ambil node terakhir */
-message-content   /* → ambil node terakhir; cocokkan dengan copy-button utk pastikan model response */
+/* Gemini membungkus tiap balasan model dalam <message-content>; ambil node terakhir */
+message-content   /* node TERAKHIR = balasan terbaru */
 ```
-Assistant terakhir = node `message-content` terakhir. Untuk memastikan itu balasan model
-(bukan query user), cocokkan dengan penanda copy-button (hanya balasan model yang punya
-action bar copy). Gemini TIDAK pakai `data-testid="assistant-message"` (best-effort).
+**PENTING (terverifikasi):** Gemini TIDAK membuat `<message-content>` untuk query user —
+hanya untuk balasan model. Jadi `message-content` terakhir = balasan terbaru TANPA perlu
+membedakan user/model. (Di satu new chat berurutan: Q1→count 1, Q2→count 2, Q3→count 3;
+node terakhir selalu = reply pertanyaan terakhir.) Ambil innerText node terakhir sbg teks
+balasan. Gemini TIDAK pakai `data-testid="assistant-message"`.
 
 > Gemini reply node (`message-content`) — capture pakai **innerText** node terakhir
 > (→ `web-dom-general §4` poin 1, AUTHORITATIVE). Clipoard **DITOLAK** sebagai sumber
