@@ -52,9 +52,10 @@ agents_bridge/
 | `architecture-decision-records` | ecc | Capture decisions as ADRs. |
 | `agent-architecture-audit` | ecc | Audit the 12-layer agent stack for regression/corruption. |
 | `knowledge-ops` | ecc | Multi-layer knowledge capture/sync. |
-| `web-dom-chatgpt` | new (user-taught) | **MANDATORY** ChatGPT web UI DOM rules — composer, send, scrape, scroll, vision. Auto-updates on DOM drift. |
-| `web-dom-claude` | new (mirror of web-dom-chatgpt) | **MANDATORY** Claude Web UI DOM rules — focus trick (`r`+Backspace), send, scrape. BEST-EFFORT selectors (not live-validated yet). |
-| `web-dom-z` | new (mirror of web-dom-claude) | **MANDATORY** Z Web UI DOM rules — click `#chat-input` + paste (no focus shortcut), send, scrape. LIVE-VERIFIED selectors (2026-07-16). |
+| `web-dom-general` | new (extracted, shared) | **MANDATORY FIRST** — shared DOM rules for ALL remotes (human-like drive, `temp_questions_single` purity, wait-for-generation, scrape order, ADR-0004 trust, transport split, auto-learning). Edit once → all `web-dom-*` inherit. |
+| `web-dom-chatgpt` | new (user-taught) | **MANDATORY** ChatGPT-specific DOM — `Shift+Esc` focus, send button, reply selector, scroll-to-bottom, vision. LIVE-VERIFIED. Delegates shared rules to web-dom-general. |
+| `web-dom-claude` | new (mirror of web-dom-chatgpt) | **MANDATORY** Claude-specific DOM — focus trick (`r`+Backspace), send, scrape. BEST-EFFORT selectors (not live-validated yet). Delegates shared rules to web-dom-general. |
+| `web-dom-z` | new (mirror of web-dom-claude) | **MANDATORY** Z-specific DOM — click `#chat-input` + paste (no focus shortcut), send, scrape. LIVE-VERIFIED selectors (2026-07-16). Delegates shared rules to web-dom-general. |
 
 ## Quick start (operate the bridge)
 
@@ -63,10 +64,10 @@ agents_bridge/
 playwright-cli --version
 
 # 2. confirm the target Chrome exposes CDP (host:port supplied by the user)
-curl -s http://<host>:9222/json/version
+curl -s http://<host>:18322/json/version
 
 # 3. attach + open the chat page
-playwright-cli attach --cdp=http://<host>:9222
+playwright-cli attach --cdp=http://<host>:18322
 playwright-cli goto https://chatgpt.com/c/6a55d793-7190-83ec-bef1-2dedc49cf737
 
 # 4. read the page, craft a message, send, wait, log
@@ -76,7 +77,7 @@ playwright-cli fill "<composer-ref>" "your message" --submit
 ```
 
 > **Cross-PC via SSH** is live: on Windows run Chrome with
-> `--remote-debugging-port=9222`, then `ssh -R 9222:localhost:9222 linux` to forward
+> `--remote-debugging-port=18322`, then `ssh -R 18322:localhost:18322 linux` to forward
 > the port to this box. The bridge only needs the reachable `host:port`.
 
 ## Building / evolving the bridge
@@ -88,7 +89,7 @@ owns design decisions; `bridge-operator` executes the driving; `tester` verifies
 
 ## Transport script (`gpt/bridge-cdp-gpt_new.ts` + `gpt/bridge-cdp-gpt_continue.ts`)
 
-Two small TypeScript transports that connect to Chrome over CDP (`http://localhost:9222`),
+Two small TypeScript transports that connect to Chrome over CDP (`http://localhost:18322`),
 open a ChatGPT conversation, and read the last assistant reply (default) or send a prompt
 and wait for the reply (bidirectional). They are **identical except for the default
 target**:
@@ -108,7 +109,7 @@ npx tsx gpt/<file>.ts
 BRIDGE_MODE=send BRIDGE_PROMPT="your question here" npx tsx gpt/<file>.ts
 
 # override endpoint/conversation:
-BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx gpt/<file>.ts
+BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx gpt/<file>.ts
 ```
 
 - `_continue.ts` reads the existing conversation `6a578f51-…` by default (set
@@ -150,7 +151,7 @@ npx tsx claude/<file>.ts
 BRIDGE_MODE=send BRIDGE_PROMPT="your question here" npx tsx claude/<file>.ts
 
 # override endpoint/conversation:
-BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://claude.ai/chat/... npx tsx claude/<file>.ts
+BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://claude.ai/chat/... npx tsx claude/<file>.ts
 ```
 
 The Claude-side data dirs (`claude_questions_import/`, `claude_answers_import/`) are kept
@@ -194,7 +195,7 @@ npx tsx z/<file>.ts
 BRIDGE_MODE=send BRIDGE_PROMPT="your question here" npx tsx z/<file>.ts
 
 # override endpoint/conversation:
-BRIDGE_CDP=http://host:9222 BRIDGE_CHAT_URL=https://chat.z.ai/c/... npx tsx z/<file>.ts
+BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://chat.z.ai/c/... npx tsx z/<file>.ts
 ```
 
 The Z-side data dirs (`z_questions_import/`, `z_answers_import/`) are kept **separate**
@@ -206,8 +207,8 @@ mix. Chain command: `/webchain-z`.
 > `web-dom-z` §1.
 
 > Cross-PC: on the Windows machine run Chrome with
-> `--remote-debugging-port=9222 --user-data-dir=... --profile-directory="Profile 14"`,
-> then forward `9222` to this Linux box (the SSH tunnel skill is taught separately by the
+> `--remote-debugging-port=18322 --user-data-dir=... --profile-directory="Profile 14"`,
+> then forward `18322` to this Linux box (the SSH tunnel skill is taught separately by the
 > user). The script only needs the reachable `host:port`.
 
 ## Knowledge pipeline (from BRAINSTROM)

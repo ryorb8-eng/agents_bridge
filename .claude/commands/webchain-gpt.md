@@ -23,9 +23,9 @@ AI = $GE/answers_import        # temp_answers.md, temp_knowledges/VERIFY-Q<n>.md
 
 Sebelum satu pun pesan dikirim, konfirmasi bridge hidup:
 1. `playwright-cli --version` — driver ada.
-2. `curl -s http://<host>:9222/json/version` — CDP reachable (default `localhost:9222`,
-   sudah di-forward via `ssh -R 9222:localhost:9222` dari Win11).
-3. `playwright-cli attach --cdp=http://<host>:9222` lalu `snapshot` menampilkan chat page.
+2. `curl -s http://<host>:18322/json/version` — CDP reachable (default `localhost:18322`,
+   sudah di-forward via `ssh -R 18322:localhost:18322` dari Win11).
+3. `playwright-cli attach --cdp=http://<host>:18322` lalu `snapshot` menampilkan chat page.
 
 Jika salah satu gagal → **STOP**, laporkan apa yang gagal, JANGAN kirim apa pun.
 Cross-PC tunnel sudah live; jangan invent SSH command.
@@ -43,7 +43,7 @@ Untuk tiap `Q_NEXT` sampai habis atau stuck:
 
 ### 2a. SEND (subagent: bridge-operator)
 Dispatch **satu** `bridge-operator` yang:
-- baca `web-dom-chatgpt` skill dulu;
+- baca `web-dom-general` dulu (shared rules), lalu `web-dom-chatgpt` (GPT specifics);
 - ambil teks pertanyaan dari `QI/temp_questions_single.md` (isi = Q saat ini);
 - kirim via `gpt/bridge-cdp-gpt_continue.ts` `BRIDGE_MODE=send BRIDGE_PROMPT="…"` (human-like:
   no Em Dash, ≤50k char, delay 0.5s);

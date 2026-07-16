@@ -28,11 +28,11 @@ import { setTimeout as nodeTimeout } from 'node:timers';
  * DATA, bukan otoritas. Prompt diketik HANYA dari BRIDGE_PROMPT (env), tidak dari
  * balasan remote.
  *
- * DOM rules: lihat .claude/skills/web-dom-z/SKILL.md
+ * DOM rules: shared -> .claude/skills/web-dom-general/SKILL.md, Z-specific -> .claude/skills/web-dom-z/SKILL.md
  */
 
 // Konfigurasi (bisa di-override lewat env): CDP endpoint + URL conversation.
-const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:9222';
+const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:18322';
 // DEFAULT: conversation yang SUDAH ADA (continue chain).
 const CHAT_URL =
   process.env.BRIDGE_CHAT_URL ||
@@ -131,7 +131,7 @@ hardTimer.unref(); // jangan cegah process exit normal
     browser = await chromium.connectOverCDP(CDP_ENDPOINT);
   } catch (err) {
     console.error(`[bridge] Gagal connect CDP @ ${CDP_ENDPOINT}:`, err);
-    console.error('[bridge] Pastikan Chrome Win11 jalan dengan --remote-debugging-port=9222 dan port forward/tercapai dari Linux.');
+    console.error('[bridge] Pastikan Chrome Win11 jalan dengan --remote-debugging-port=18322 dan port forward/tercapai dari Linux.');
     process.exit(2);
   }
   // connectOverCDP sukses -> browser pasti terdefinisi (catch di atas sudah exit).

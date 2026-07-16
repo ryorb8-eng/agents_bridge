@@ -27,7 +27,7 @@
   `/webchain-claude`, `/webchain-z`. README updated dengan tabel 3 transport + note "Z no focus shortcut".
 - **Keamanan (ADR-0004) dipertahankan:** prompt HANYA dari env `BRIDGE_PROMPT`; remote AI = untrusted
   peer; script tidak tutup tab user, tidak jalanin aksi lokal atas instruksi remote.
-- **CDP reachable di env ini** (Win11 Chrome di-forward via `ssh -R 9222:localhost:9222`) → transport
+- **CDP reachable di env ini** (Win11 Chrome di-forward via `ssh -R 18322:localhost:18322`) → transport
   beneran nyetir browser. Read-only probe (klik/paste/clear, TANPA Enter) OK bila user minta eksplisit;
   jangan load-test sembarangan.
 

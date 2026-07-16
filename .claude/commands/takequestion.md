@@ -82,5 +82,5 @@ TUJUAN : /home/s/TASK/agents_bridge/brainstrom/chrome_win11/from_projects/optikm
 - Hubungan dengan bridge: pertanyaan di `temp_questions_single.md` dikirim lewat
   `gpt/bridge-cdp-gpt_continue.ts` (MODE=send) per Protocol, balasan masuk ke `answers_import/`
   (lihat knowledge-pipeline).
-- Baca `.claude/skills/web-dom-chatgpt/SKILL.md` sebelum mengirim apa pun ke
-  ChatGPT.
+- Baca `.claude/skills/web-dom-general/SKILL.md` dulu (shared rules), lalu
+  `.claude/skills/web-dom-chatgpt/SKILL.md` sebelum mengirim apa pun ke ChatGPT.

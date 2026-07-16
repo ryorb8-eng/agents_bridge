@@ -17,19 +17,19 @@ session and the user's Chrome. You do **not** decide message meaning — that is
 `bridge-protocol`. You attach, snapshot, fill, click, wait, and log.
 
 > **Readiness gate (AGENTS.md PHASE 0).** Do NOT message the remote AI until
-> `playwright-cli --version` works AND `curl -s http://<host>:9222/json/version`
+> `playwright-cli --version` works AND `curl -s http://<host>:18322/json/version`
 > succeeds AND `attach` + `snapshot` shows the chat page. If any step fails, STOP and
 > report it. Never fabricate a message exchange.
 
 > **Cross-PC via SSH is not built yet.** The user will teach the tunnel skill later.
 > Treat `host:port` as a value the user supplies (often an SSH-forwarded
-> `localhost:9222`). Do not invent SSH commands.
+> `localhost:18322`). Do not invent SSH commands.
 
 ## Attach to the browser AI
 
 ```bash
 # Primary: attach to a running Chrome by CDP endpoint (local or tunneled cross-PC)
-playwright-cli -s=bridge attach --cdp=http://<host>:9222
+playwright-cli -s=bridge attach --cdp=http://<host>:18322
 
 # By channel (Chrome on this machine, remote-debugging enabled)
 playwright-cli -s=bridge attach --cdp=chrome

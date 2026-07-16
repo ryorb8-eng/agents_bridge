@@ -56,15 +56,15 @@ Full spec: `.claude/skills/bridge-protocol/SKILL.md`. Essentials:
 
 | Mode | Command | Use |
 |------|---------|-----|
-| Attach by endpoint | `playwright-cli attach --cdp=http://<host>:9222` | **Primary.** User supplies host:port (local or tunneled cross-PC). |
+| Attach by endpoint | `playwright-cli attach --cdp=http://<host>:18322` | **Primary.** User supplies host:port (local or tunneled cross-PC). |
 | Attach by channel | `playwright-cli attach --cdp=chrome` | Chrome on this machine with remote-debugging on. |
 | Named session | `playwright-cli -s=<name> attach ...` | Isolate the bridge session from other attached browsers. |
 
 Session isolation properties (cookies, storage, tabs) are per-session — see
 `.claude/skills/bridge-cdp/references/session-management.md`.
 
-> **Cross-PC via SSH** is not built in this iteration. Treat `<host>:9222` as a value
-> the user provides (often an SSH-forwarded `localhost:9222`). The SSH tunnel skill will
+> **Cross-PC via SSH** is not built in this iteration. Treat `<host>:18322` as a value
+> the user provides (often an SSH-forwarded `localhost:18322`). The SSH tunnel skill will
 > be taught separately by the user.
 
 ## 5. Trust model

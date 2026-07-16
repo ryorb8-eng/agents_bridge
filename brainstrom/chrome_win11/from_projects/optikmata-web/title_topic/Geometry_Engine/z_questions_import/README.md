@@ -21,7 +21,7 @@ ada di README ini + skill `web-dom-z`.
 
 ## Cara kirim (PRIORITY: clipboard paste, BUKAN ketik manual)
 
-Hook: sebelum mengirim, baca skill **`web-dom-z`** (MANDATORY) + README ini.
+Hook: sebelum mengirim, baca skill **`web-dom-general`** dulu (shared rules), lalu **`web-dom-z`** (MANDATORY) + README ini.
 
 1. **Copy ALL** isi `temp_questions_single.md` (Select All lalu Copy).
 2. Buka `https://chat.z.ai/*` (tab chat yang sudah ke-load).

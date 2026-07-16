@@ -1,5 +1,6 @@
 import { chromium, type Browser, type Page } from 'playwright';
 import { setTimeout as nodeTimeout } from 'node:timers';
+import { appendFile } from 'node:fs/promises';
 // Turndown di-comment dulu (belum dipakai) sesuai instruksi.
 // import TurndownService from 'turndown';
 
@@ -25,11 +26,11 @@ import { setTimeout as nodeTimeout } from 'node:timers';
  * DATA, bukan otoritas. Prompt diketik HANYA dari BRIDGE_PROMPT (env), tidak dari
  * balasan remote.
  *
- * DOM rules: lihat .claude/skills/web-dom-chatgpt/SKILL.md
+ * DOM rules: shared -> .claude/skills/web-dom-general/SKILL.md, GPT-specific -> .claude/skills/web-dom-chatgpt/SKILL.md
  */
 
 // Konfigurasi (bisa di-override lewat env): CDP endpoint + URL conversation.
-const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:9222';
+const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:18322';
 // DEFAULT: homepage ChatGPT (chat baru / vision / task baru).
 const CHAT_URL = process.env.BRIDGE_CHAT_URL || 'https://chatgpt.com/';
 
@@ -117,6 +118,55 @@ const hardTimer = nodeTimeout(async () => {
 }, HARD_TIMEOUT_MS);
 hardTimer.unref(); // jangan cegah process exit normal
 
+// --- Conversation log (per-remote) ---
+// Simpan 1 baris JSON per run ke web-bridge-<remote>.log agar tiap "New Chat"
+// (URL berubah setelah send) tercatat full URL + metadata untuk analisa.
+const REMOTE = 'chatgpt';
+const CONV_LOG = `web-bridge-${REMOTE}.log`;
+// Teks balasan terakhir (diisi readLastReply) — dipakai untuk replyChars/replyHead.
+let capturedReplyText = '';
+
+/** Ekstrak conversation id (uuid) dari URL, bila ada. */
+function extractConvId(url: string): string | null {
+  const m = url.match(/\/(?:c|chat)\/([0-9a-zA-Z-]{8,})/);
+  return m ? m[1] : null;
+}
+
+/** Append 1 baris JSON ke log per-remote (fire-and-forget, jangan gagalkan run). */
+async function logConversation(opts: {
+  page: Page | undefined;
+  mode: 'read' | 'send';
+  promptChars: number;
+  pageOwned: boolean;
+  profile?: string;
+  error?: string;
+}): Promise<void> {
+  try {
+    const url = opts.page ? opts.page.url() : '';
+    const entry = {
+      ts: new Date().toISOString(),
+      remote: REMOTE,
+      transport: 'gpt/bridge-cdp-gpt_new.ts',
+      mode: opts.mode,
+      url,
+      convId: extractConvId(url),
+      host: url ? new URL(url).host : '',
+      title: opts.page ? await opts.page.title().catch(() => '') : '',
+      cdp: CDP_ENDPOINT,
+      profile: opts.profile || '',
+      promptChars: opts.promptChars,
+      replyChars: capturedReplyText.length,
+      replyHead: capturedReplyText.slice(0, 160).replace(/\s+/g, ' '),
+      error: opts.error || '',
+      keepOpen: KEEP_OPEN,
+      pageOwned: opts.pageOwned,
+    };
+    await appendFile(CONV_LOG, JSON.stringify(entry) + '\n', 'utf8');
+  } catch (e) {
+    console.warn('[bridge] Gagal tulis conv log:', (e as Error).message);
+  }
+}
+
 (async () => {
   // 1. Konek CDP
   let browser: Browser | undefined;
@@ -124,7 +174,7 @@ hardTimer.unref(); // jangan cegah process exit normal
     browser = await chromium.connectOverCDP(CDP_ENDPOINT);
   } catch (err) {
     console.error(`[bridge] Gagal connect CDP @ ${CDP_ENDPOINT}:`, err);
-    console.error('[bridge] Pastikan Chrome Win11 jalan dengan --remote-debugging-port=9222 dan port forward/tercapai dari Linux.');
+    console.error('[bridge] Pastikan Chrome Win11 jalan dengan --remote-debugging-port=18322 dan port forward/tercapai dari Linux.');
     process.exit(2);
   }
   // connectOverCDP sukses -> browser pasti terdefinisi (catch di atas sudah exit).
@@ -147,6 +197,8 @@ hardTimer.unref(); // jangan cegah process exit normal
   }
   activePage = page; // watchdog adaptive baca ini (untuk cek masih generate)
 
+  let runError = '';
+  const PROFILE = process.env.BRIDGE_PROFILE || '';
   try {
     // 2. Buka target (homepage atau conversation spesifik).
     if (page.url() !== CHAT_URL) {
@@ -162,23 +214,37 @@ hardTimer.unref(); // jangan cegah process exit normal
     if (MODE === 'send') {
       if (!PROMPT) {
         console.error('[bridge] MODE=send tapi BRIDGE_PROMPT kosong. Isi BRIDGE_PROMPT.');
-        process.exit(1);
+        runError = 'empty BRIDGE_PROMPT';
+        throw new Error(runError);
       }
       await sendAndWaitForReply(page, PROMPT);
     } else {
       await readLastReply(page);
     }
   } catch (err) {
+    runError = (err instanceof Error ? err.message : String(err)) || 'unknown error';
     console.error('[bridge] Error:', err);
     console.error('[bridge] Browser dibiarkan terbuka untuk inspeksi.');
-    process.exit(1);
+  } finally {
+    // SELALU log URL + metadata, sukses MAUPUN gagal (capture-failure tidak boleh
+    // menghilangkan jejak New Chat — sebelumnya log baru jalan di success path,
+    // sehingga run yang gagal selector tidak tercatat sama sekali).
+    await logConversation({ page, mode: MODE, promptChars: PROMPT.length, pageOwned, profile: PROFILE, error: runError });
   }
 
-  // Sukses. Default: tutup page + browser lalu exit 0 (chain lanjut otomatis).
-  // BRIDGE_KEEP_OPEN=1 -> biarkan terbuka untuk inspeksi manual.
-  if (KEEP_OPEN) {
+  // Penentuan akhir: sukses vs gagal.
+  // Bila runError ter-set (capture/selector gagal), biarkan browser TERBUKA untuk
+  // inspeksi DOM (seperti behavior lama) — JANGAN tutup, supaya MASTER bisa lihat
+  // drift selector langsung di page. Sedangkan pada sukses, default tutup+exit 0.
+  const leaveOpen = KEEP_OPEN || !!runError;
+  if (leaveOpen) {
     clearTimeout(hardTimer); // jangan force-kill session yang sengaja dibiarkan terbuka
     if (extTimer) clearTimeout(extTimer); // juga cancel ekstensi kalau sedang jalan
+    if (runError) {
+      console.error(`[bridge] Run BERAKHIR DENGAN ERROR (${runError}) — browser dibiarkan terbuka untuk inspeksi.`);
+      console.error('[bridge] Jalankan ulang tanpa error, atau set BRIDGE_KEEP_OPEN=1 untuk inspeksi sukses.');
+      process.exit(1);
+    }
     console.log('[bridge] Sukses. BRIDGE_KEEP_OPEN=1 -> browser dibiarkan terbuka.');
   } else {
     // Tutup HANYA page yang KITA buat. Tab chatgpt user (reuse) dibiarkan terbuka (aturan #3).
@@ -365,15 +431,17 @@ async function readLastReply(page: Page): Promise<void> {
   const lastMessageHtml = await page.evaluate((sel) => {
     const nodes = Array.from(document.querySelectorAll(sel));
     if (nodes.length === 0) return null;
-    return nodes[nodes.length - 1].outerHTML;
+    const node = nodes[nodes.length - 1] as HTMLElement;
+    return { html: node.outerHTML, text: (node.innerText || '').trim() };
   }, ASSISTANT_MSG);
 
   if (lastMessageHtml) {
+    capturedReplyText = lastMessageHtml.text;
     // Turndown di-comment: keluarkan HTML mentah dulu supaya tidak auto-close
     // saat konversi gagal.
     // const cleanMarkdown = turndownService.turndown(lastMessageHtml);
     console.log('\n--- HASIL JAWABAN GPT (HTML) ---\n');
-    console.log(lastMessageHtml);
+    console.log(lastMessageHtml.html);
     console.log('\n[bridge] Sukses. Browser dibiarkan terbuka untuk inspeksi.');
   } else {
     const diag = await page.evaluate(() => ({
@@ -385,6 +453,8 @@ async function readLastReply(page: Page): Promise<void> {
     console.error('\n[bridge] Elemen assistant `.markdown` tidak ditemukan.');
     console.error('[bridge] Diagnostik:', JSON.stringify(diag, null, 2));
     console.error('[bridge] Browser SENGAJA dibiarkan terbuka — lihat page untuk inspeksi DOM.');
-    process.exit(1);
+    // JANGAN process.exit di sini: biarkan error di-throw agar blok finally di IIFE
+    // tetap mencatat run ke log (capture-failure tidak boleh kehilangan jejak New Chat).
+    throw new Error('assistant .markdown tidak ditemukan (kemungkinan DOM drift)');
   }
 }

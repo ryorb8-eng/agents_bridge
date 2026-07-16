@@ -14,7 +14,7 @@ cara-kirim ada di README ini + skill `web-dom-chatgpt`.
 
 ## Cara kirim (PRIORITY: clipboard paste, bukan ketik manual)
 
-Hook: sebelum mengirim, baca skill **`web-dom-chatgpt`** (MANDATORY) + README ini.
+Hook: sebelum mengirim, baca skill **`web-dom-general`** dulu (shared rules), lalu **`web-dom-chatgpt`** (MANDATORY) + README ini.
 
 1. **Copy ALL** isi `temp_questions_single.md` (Select All lalu Copy).
 2. Buka `https://chatgpt.com/*` (tab chat yang sudah ke-load).

@@ -9,7 +9,7 @@ Applies to: a remote AI reached through the user's Chrome over CDP.
 playwright-cli --version            # or: npx playwright-cli --version
 
 # target Chrome exposes CDP? (<host>:<port> supplied by user)
-curl -s http://<host>:9222/json/version
+curl -s http://<host>:18322/json/version
 ```
 
 If either fails → STOP, report the exact failure. Do not fake a turn.
@@ -17,7 +17,7 @@ If either fails → STOP, report the exact failure. Do not fake a turn.
 ## 1. Attach (named session)
 
 ```bash
-playwright-cli -s=bridge attach --cdp=http://<host>:9222
+playwright-cli -s=bridge attach --cdp=http://<host>:18322
 playwright-cli -s=bridge goto https://chatgpt.com/c/6a55d793-7190-83ec-bef1-2dedc49cf737
 playwright-cli -s=bridge snapshot
 ```

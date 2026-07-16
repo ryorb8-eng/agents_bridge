@@ -136,7 +136,7 @@ When `--session` is not provided, the session is named after the channel (e.g. `
 Connect to a browser that exposes a Chrome DevTools Protocol endpoint:
 
 ```bash
-playwright-cli attach --cdp=http://localhost:9222
+playwright-cli attach --cdp=http://localhost:18322
 ```
 
 ### Attach via browser extension

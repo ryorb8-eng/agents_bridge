@@ -9,6 +9,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - bridge-protocol
   - knowledge-ops
+  - web-dom-general
   - web-dom-chatgpt
 ---
 

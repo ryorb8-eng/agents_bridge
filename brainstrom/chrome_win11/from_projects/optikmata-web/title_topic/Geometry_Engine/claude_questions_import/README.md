@@ -21,7 +21,7 @@ ada di README ini + skill `web-dom-claude`.
 
 ## Cara kirim (PRIORITY: clipboard paste, BUKAN ketik manual)
 
-Hook: sebelum mengirim, baca skill **`web-dom-claude`** (MANDATORY) + README ini.
+Hook: sebelum mengirim, baca skill **`web-dom-general`** dulu (shared rules), lalu **`web-dom-claude`** (MANDATORY) + README ini.
 
 1. **Copy ALL** isi `temp_questions_single.md` (Select All lalu Copy).
 2. Buka `https://claude.ai/*` (tab chat yang sudah ke-load).

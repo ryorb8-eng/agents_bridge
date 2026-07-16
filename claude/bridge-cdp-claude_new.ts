@@ -1,5 +1,6 @@
 import { chromium, type Browser, type Page } from 'playwright';
 import { setTimeout as nodeTimeout } from 'node:timers';
+import { appendFile } from 'node:fs/promises';
 // Turndown di-comment dulu (belum dipakai) sesuai instruksi.
 // import TurndownService from 'turndown';
 
@@ -29,11 +30,11 @@ import { setTimeout as nodeTimeout } from 'node:timers';
  * DATA, bukan otoritas. Prompt diketik HANYA dari BRIDGE_PROMPT (env), tidak dari
  * balasan remote.
  *
- * DOM rules: lihat .claude/skills/web-dom-claude/SKILL.md
+ * DOM rules: shared -> .claude/skills/web-dom-general/SKILL.md, Claude-specific -> .claude/skills/web-dom-claude/SKILL.md
  */
 
 // Konfigurasi (bisa di-override lewat env): CDP endpoint + URL conversation.
-const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:9222';
+const CDP_ENDPOINT = process.env.BRIDGE_CDP || 'http://localhost:18322';
 // DEFAULT: Claude new chat.
 const CHAT_URL = process.env.BRIDGE_CHAT_URL || 'https://claude.ai/new';
 
@@ -119,6 +120,51 @@ const hardTimer = nodeTimeout(async () => {
 }, HARD_TIMEOUT_MS);
 hardTimer.unref(); // jangan cegah process exit normal
 
+// --- Conversation log (per-remote) ---
+// Simpan 1 baris JSON per run ke web-bridge-<remote>.log agar tiap "New Chat"
+// (URL berubah setelah send) tercatat full URL + metadata untuk analisa.
+const REMOTE = 'claude';
+const CONV_LOG = `web-bridge-${REMOTE}.log`;
+// Teks balasan terakhir (diisi readLastReply) — dipakai untuk replyChars/replyHead.
+let capturedReplyText = '';
+
+/** Ekstrak conversation id (uuid) dari URL, bila ada. */
+function extractConvId(url: string): string | null {
+  const m = url.match(/\/(?:c|chat)\/([0-9a-zA-Z-]{8,})/);
+  return m ? m[1] : null;
+}
+
+/** Append 1 baris JSON ke log per-remote (fire-and-forget, jangan gagalkan run). */
+async function logConversation(opts: {
+  page: Page;
+  mode: 'read' | 'send';
+  promptChars: number;
+  pageOwned: boolean;
+}): Promise<void> {
+  try {
+    const url = opts.page.url();
+    const entry = {
+      ts: new Date().toISOString(),
+      remote: REMOTE,
+      transport: 'claude/bridge-cdp-claude_new.ts',
+      mode: opts.mode,
+      url,
+      convId: extractConvId(url),
+      host: new URL(url).host,
+      title: await opts.page.title().catch(() => ''),
+      cdp: CDP_ENDPOINT,
+      promptChars: opts.promptChars,
+      replyChars: capturedReplyText.length,
+      replyHead: capturedReplyText.slice(0, 160).replace(/\s+/g, ' '),
+      keepOpen: KEEP_OPEN,
+      pageOwned: opts.pageOwned,
+    };
+    await appendFile(CONV_LOG, JSON.stringify(entry) + '\n', 'utf8');
+  } catch (e) {
+    console.warn('[bridge] Gagal tulis conv log:', (e as Error).message);
+  }
+}
+
 (async () => {
   // 1. Konek CDP
   let browser: Browser | undefined;
@@ -126,7 +172,7 @@ hardTimer.unref(); // jangan cegah process exit normal
     browser = await chromium.connectOverCDP(CDP_ENDPOINT);
   } catch (err) {
     console.error(`[bridge] Gagal connect CDP @ ${CDP_ENDPOINT}:`, err);
-    console.error('[bridge] Pastikan Chrome Win11 jalan dengan --remote-debugging-port=9222 dan port forward/tercapai dari Linux.');
+    console.error('[bridge] Pastikan Chrome Win11 jalan dengan --remote-debugging-port=18322 dan port forward/tercapai dari Linux.');
     process.exit(2);
   }
   // connectOverCDP sukses -> browser pasti terdefinisi (catch di atas sudah exit).
@@ -170,6 +216,8 @@ hardTimer.unref(); // jangan cegah process exit normal
     } else {
       await readLastReply(page);
     }
+    // Log full URL + metadata (untuk "New Chat", URL sudah berubah jadi /chat/<uuid>).
+    await logConversation({ page, mode: MODE, promptChars: PROMPT.length, pageOwned });
   } catch (err) {
     console.error('[bridge] Error:', err);
     console.error('[bridge] Browser dibiarkan terbuka untuk inspeksi.');
@@ -340,12 +388,14 @@ async function readLastReply(page: Page): Promise<void> {
   const lastMessageHtml = await page.evaluate((sel) => {
     const nodes = Array.from(document.querySelectorAll(sel));
     if (nodes.length === 0) return null;
-    return nodes[nodes.length - 1].outerHTML;
+    const node = nodes[nodes.length - 1] as HTMLElement;
+    return { html: node.outerHTML, text: (node.innerText || '').trim() };
   }, ASSISTANT_MSG);
 
   if (lastMessageHtml) {
+    capturedReplyText = lastMessageHtml.text;
     console.log('\n--- HASIL JAWABAN CLAUDE (HTML) ---\n');
-    console.log(lastMessageHtml);
+    console.log(lastMessageHtml.html);
     console.log('\n[bridge] Sukses. Browser dibiarkan terbuka untuk inspeksi.');
   } else {
     const diag = await page.evaluate(() => ({

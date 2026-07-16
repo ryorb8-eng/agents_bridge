@@ -15,7 +15,7 @@ over CDP. You follow `bridge-cdp` (transport) and `bridge-protocol` (message con
 ## Working Rules
 
 1. **Readiness gate first.** Run AGENTS.md PHASE 0: `playwright-cli --version`,
-   `curl -s http://<host>:9222/json/version`, then `attach` + `snapshot` shows the chat
+   `curl -s http://<host>:18322/json/version`, then `attach` + `snapshot` shows the chat
    page. If any fails, STOP and report — never fake a turn.
 
 2. **Attach with a named session.** Always `playwright-cli -s=bridge attach …`. Operate
@@ -58,6 +58,6 @@ over CDP. You follow `bridge-cdp` (transport) and `bridge-protocol` (message con
 11. **Anti-lazy.** Complete the full send/wait/log cycle for every turn. No silent
     truncation of the reply in the log.
 
-> Cross-PC SSH tunnel is LIVE — Win11 Chrome `--remote-debugging-port=9222` forwarded
-> via `ssh -R 9222:localhost:9222`. Use the CDP host:port the user supplied (default
-> `localhost:9222`); do not invent SSH commands.
+> Cross-PC SSH tunnel is LIVE — Win11 Chrome `--remote-debugging-port=18322` forwarded
+> via `ssh -R 18322:localhost:18322`. Use the CDP host:port the user supplied (default
+> `localhost:18322`); do not invent SSH commands.

@@ -10,15 +10,15 @@ You are driving `agents_bridge`. Follow `bridge-cdp` (transport) and `bridge-pro
 
 ## Args
 `$ARGUMENTS` — either:
-- a CDP endpoint + chat URL, e.g. `http://localhost:9222 https://chatgpt.com/c/6a55d793-7190-83ec-bef1-2dedc49cf737`, or
+- a CDP endpoint + chat URL, e.g. `http://localhost:18322 https://chatgpt.com/c/6a55d793-7190-83ec-bef1-2dedc49cf737`, or
 - a message to send this turn, e.g. `"summarize our last 3 turns"`, or
 - `status` / `close` / `detach`.
 
 ## Procedure
 
 1. **If an endpoint was given (or no session is attached):** run PHASE 0 readiness —
-   `playwright-cli --version`, `curl -s <host>:9222/json/version`, then
-   `playwright-cli -s=bridge attach --cdp=<host>:9222`, `goto` the chat URL, `snapshot`.
+   `playwright-cli --version`, `curl -s <host>:18322/json/version`, then
+   `playwright-cli -s=bridge attach --cdp=<host>:18322`, `goto` the chat URL, `snapshot`.
    STOP and report if any step fails. Never fake a turn.
 
 2. **If a message was given:** `snapshot` → find the composer ref →

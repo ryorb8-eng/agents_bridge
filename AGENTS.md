@@ -84,10 +84,10 @@ to message the remote AI until readiness passes.
 1. **Local tool present** — `playwright-cli --version` (or `npx playwright-cli
    --version`) must succeed. If missing, install `@playwright/cli`.
 2. **Target browser reachable** — the remote Chrome exposes CDP. Confirm with
-   `curl -s http://<host>:9222/json/version` (cross-PC: the host/port the user gave
+   `curl -s http://<host>:18322/json/version` (cross-PC: the host/port the user gave
    you; the SSH tunnel skill is taught separately by the user — do NOT invent SSH
    commands yet).
-3. **Session attached** — `playwright-cli attach --cdp=http://<host>:9222` returns a
+3. **Session attached** — `playwright-cli attach --cdp=http://<host>:18322` returns a
    session, and `playwright-cli snapshot` shows the browser AI's chat page loaded.
 4. **Message log initialized** — a `docs/bridge/message-log.md` (or the file the user
    named) is open and ready to append turns.
