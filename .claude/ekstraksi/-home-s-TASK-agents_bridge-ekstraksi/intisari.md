@@ -19,6 +19,16 @@
 - **Z capture OK:** `z/bridge-cdp-z_new.ts` jalan bersih — pakai `.copy-response-button` + bubble `div[class*="message-"]`, `waitForFunction` DOM (bukan visibility) → hindari bug GPT. Paste `ai_role_answers.md` ke Z new chat (Profile 14) sukses, Z balas "initialized as AI Agents Answering node" (file itu persona def, bukan pertanyaan — behavior benar).
 - **Staged lock-down gotcha:** kalau pakai key YANG SAMA, jangan taruh plain-line + scoped-line berdampingan — OpenSSH match baris PERTAMA, jadi plain (shell) menang. Dengan 1 key: langsung single scoped line. Staged aman HANYA kalau pakai key BEDA (test key).
 
+## [2026-07-17] Gemini remote port (Profile 2) — transport + skill + command + import dirs
+- **Gemini di-bridge via Profile 2** (BUKAN Profile 14). Transport: `gemini/bridge-cdp-gemini_new.ts` (homepage `https://gemini.google.com/app`) + `gemini/bridge-cdp-gemini_continue.ts` (`https://gemini.google.com/app/993698fe8a26cae6`). Keduanya default `BRIDGE_PROFILE='Profile 2'`. `_new.ts` punya `logConversation` → `web-bridge-gemini.log` (field `profile`, `transport: 'gemini/bridge-cdp-gemini_new.ts'`, `extractConvId` match `/app/<uuid>`). `_continue.ts` BELUM tulis `.log` (konsisten dgn gpt/claude/z continue).
+- **FOKUS TRIK Gemini:** tekan `/` → sleep 0.5s → `Backspace` → sleep 0.5s = auto-fokus chat input (berbeda dari ChatGPT `Shift+Esc`, Claude `r`+Backspace, Z klik `#chat-input`). Lalu `Ctrl/Cmd+V` paste, `Enter` send.
+- **STOP-button Gemini** (`web-dom-gemini §3.1`): deteksi "masih menjawab" = cek `[data-mat-icon-name="stop"]` / `[fonticon="stop"]` ADA → generate. Bukan copy-button (copy-button = capture only).
+- **Scrape Gemini:** `message-content` node terakhir, innerText = AUTHORITATIVE, clipboard DITOLAK (KOTOR). Copy button best-effort = `button[aria-label="Copy"]` / `.copy-button`. Selector BEST-EFFORT (not live-verified) — re-verify snapshot sebelum aksi kritis.
+- **Skill:** `.claude/skills/web-dom-gemini/SKILL.md` (confidence: not-live-observed); `web-dom-general` enumerasi `web-dom-gemini` di 4 tempat (L8, L12/L13, L198-199, L233).
+- **Command:** `.claude/commands/webchain-gemini.md` (clone webchain-z, Profile 2, `GQI`/`GAI` dirs, dispatch verifier dgn dir Gemini).
+- **Import dirs (terpisah dari gpt/claude/z):** `Geometry_Engine/gemini_questions_import/` + `gemini_answers_import/` (README + scaffold: `by_date/17-07-2026/`, `temp_questions_all.md`, `temp_questions_single.md` (purity), `log_questions_17-07-2026.md`, `temp_answers.md`, `temp_knowledges/`, `bank_knowledges/`).
+- **Wiring:** `list_profil_vendor.md` §1 (Profile 2 + Gemini), §2 (URL↔profil Gemini), §3 (log), `AGENTS.md PHASE 0.5` pengecualian Gemini=Profile 2, `tsconfig.json` include 2 gemini transport. `tsc --noEmit` PASS.
+
 ## [2026-07-17 11:30] User address / protocol notes (MASTER)
 - Panggil user **"MASTER"**.
 - MASTER buka/tutup akses SSH secara manual (plain ↔ scoped) saat butuh. Saat scoped, agent TIDAK bisa tulis file bebas (termasuk `C:\Users\ryoro\.ssh\authorized_keys2`) — benar-benar read/gatekeeper-only.

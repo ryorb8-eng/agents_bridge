@@ -5,12 +5,13 @@ description: >-
   source of truth for human-like driving, the temp_questions_single.md purity rule,
   wait-for-generation, the scrape order, the ADR-0004 trust boundary, the transport
   split (new vs continue), and the auto-learning / "DOM Dinamis" flag. Each
-  per-remote skill (web-dom-chatgpt / web-dom-claude / web-dom-z) delegates here for
-  everything NOT remote-specific — update this file ONCE and every remote inherits
-  it. Self-updating: when any shared DOM rule diverges, update it here immediately.
+  per-remote skill (web-dom-chatgpt / web-dom-claude / web-dom-z / web-dom-gemini)
+  delegates here for everything NOT remote-specific — update this file ONCE and every
+  remote inherits it. Self-updating: when any shared DOM rule diverges, update it here
+  immediately.
 metadata:
-  origin: agents_bridge (extracted from web-dom-chatgpt / web-dom-claude / web-dom-z)
-  confidence: mixed (chatgpt + z = live-observed; claude = not-live-observed)
+  origin: agents_bridge (extracted from web-dom-chatgpt / web-dom-claude / web-dom-z / web-dom-gemini)
+  confidence: mixed (chatgpt + z = live-observed; claude + gemini = not-live-observed)
   note: >-
     This file holds ONLY the rules identical across all three remotes. Per-remote
     specifics (focus method, shortcut table, send-button selector, reply selector,
@@ -196,7 +197,8 @@ bukan sekadar hipotesis), MAKA **WAJIB** langsung simpan ke skill yang sesuai
 - **Kategorisasi → taruh di skill yang tepat:**
   - Berlaku ke **SEMUA** remote → `web-dom-general` (§4 scrape / §3 wait / §7).
   - Spesifik **ChatGPT** → `web-dom-chatgpt`. **Claude Web** → `web-dom-claude`.
-    **Z.ai** → `web-dom-z`. Vendor lain → skill `web-dom-<remote>`-nya.
+    **Z.ai** → `web-dom-z`. **Gemini** → `web-dom-gemini`. Vendor lain → skill
+    `web-dom-<remote>`-nya.
   - Bukan-DOM (transport/trust/architecture) → skill/ADR terkait (`bridge-cdp`,
     `bridge-protocol`, `docs/adr/`).
 - **Isi penemuan:** selector/markup konkret + hasil terukur (contoh: "innerText node
@@ -230,5 +232,5 @@ bukan statis, tapi **self-tuning** — metode yang lebih sering sukses naik kela
     cuma kebetulan berhasil di DOM lama.
 - **Jangan simpan skor sebagai tebakan.** Hanya update dari run yang **terukur**
   (replyChars>0 = sukses; timeout/throw = gagal). Hipotesis tanpa run = tidak dihitung.
-- Berlaku ke **SEMUA** vendor (`web-dom-chatgpt` / `web-dom-claude` / `web-dom-z` / lainnya).
+- Berlaku ke **SEMUA** vendor (`web-dom-chatgpt` / `web-dom-claude` / `web-dom-z` / `web-dom-gemini` / lainnya).
   §4 di sini adalah default; skor aktual & urutan final ada di skill masing-masing.

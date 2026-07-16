@@ -110,6 +110,9 @@ Sebelum membuka / mengemudikan / men-switch profil Chrome, dan sebelum menafsirk
    Hanya keluar dari default bila MASTER **eksplisit** minta profil lain, ATAU vendor
    **rate-limit** / gagal di `Profile 14`, ATAU hal lain yang menyebabkan vendor gagal
    jalan. Saat fallback, rujuk daftar profil di `list_profil_vendor.md` §1.
+   **Pengecualian:** **Gemini** (`gemini/bridge-cdp-gemini_*.ts`) sudah taruh default
+   `BRIDGE_PROFILE='Profile 2'` sendiri — jangan timpa jadi Profile 14 (Gemini login di
+   Profile 2). Lihat `list_profil_vendor.md` §1/§2.
 3. **FREE-TIER LIMIT = per AKUN, bukan per profil.** Ganti profil hanya me-reset limit
    bila profil tujuan login akun berbeda.
 4. **Setiap `.log` bridge (`web-bridge-<remote>.log`) WAJIB punya field `profile`** —

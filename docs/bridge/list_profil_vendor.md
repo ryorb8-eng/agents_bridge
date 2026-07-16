@@ -33,7 +33,7 @@ membuka / mengemudikan / men-switch profil, dan sebelum menafsirkan `.log` bridg
 | Profil | Vendor terisi | Catatan |
 |---|---|---|
 | `Profile 14` | ChatGPT + Claude.ai + Z.ai (semua vendor, akun utama) | **DEFAULT** semua transport. Conversation `c/6a578f51-...` (GPT) & `c/d63fd4ea-...` (Z) ada di sini. |
-| `Profile 2` | ChatGPT + Claude.ai + Z.ai (akun cadangan) | Fallback bila `Profile 14` kena rate-limit. Reset limit HANYA jika login akun berbeda. |
+| `Profile 2` | ChatGPT + Claude.ai + Z.ai (akun cadangan) + **Gemini** | Fallback rate-limit untuk GPT/Claude/Z. **Gemini DEFAULT = Profile 2** (transport gemini taruh `BRIDGE_PROFILE='Profile 2'`). Reset limit HANYA jika login akun berbeda. |
 
 > Whitelist gatekeeper (`$AllowedProfiles` di `chrome-debug-gate.ps1`) = `Profile 14`,
 > `Profile 2`. Tambah profil → edit gatekeeper + file ini bersamaan.
@@ -50,7 +50,10 @@ tertentu** (login-specific). Catat di sini agar tidak salah profil saat re-run:
 | `gpt/bridge-cdp-gpt_continue.ts` | `https://chatgpt.com/c/6a578f51-b1d4-83ec-b9c9-0afc00e55680` | `Profile 14` | chain Q15–Q17 (Geometry_Engine). |
 | `z/bridge-cdp-z_continue.ts` | `https://chat.z.ai/c/d63fd4ea-d38f-499b-a2b4-96e92e134186` | `Profile 14` | (cek live bila perlu). |
 | `claude/bridge-cdp-claude_continue.ts` | (lihat default di file transport) | `Profile 14` | isi saat diketahui. |
+| `gemini/bridge-cdp-gemini_continue.ts` | `https://gemini.google.com/app/993698fe8a26cae6` | `Profile 2` | chain Gemini (Geometry_Engine). DEFAULT profil Gemini = Profile 2. |
+| `gemini/bridge-cdp-gemini_new.ts` | `https://gemini.google.com/app` (homepage) | `Profile 2` | task baru / Vision Gemini. |
 | `*_new.ts` (gpt/claude/z) | homepage vendor (chat baru) | `Profile 14` | default. |
+| `*_new.ts` (gemini) | homepage Gemini (chat baru) | `Profile 2` | default Gemini. |
 
 > Bila MASTER bilang "jalankan di profil lain", set env `BRIDGE_PROFILE=<Profil>` DAN
 > pastikan URL/akun sesuai. Transport menulis `profile` ke `.log`.
@@ -64,6 +67,7 @@ tertentu** (login-specific). Catat di sini agar tidak salah profil saat re-run:
 | `web-bridge-gpt.log` | `gpt/bridge-cdp-gpt_new.ts` | `profile` (sudah ada) |
 | `web-bridge-claude.log` | `claude/bridge-cdp-claude_new.ts` | `profile` (wajib ada) |
 | `web-bridge-z.log` | `z/bridge-cdp-z_new.ts` | `profile` (sudah ada) |
+| `web-bridge-gemini.log` | `gemini/bridge-cdp-gemini_new.ts` | `profile` (sudah ada, = `Profile 2`) |
 | `_continue.ts` | (gpt/claude/z) | **BELUM** tulis `.log` → lihat §4 |
 
 ---
