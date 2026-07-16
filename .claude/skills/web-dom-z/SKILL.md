@@ -115,9 +115,40 @@ Assistant terakhir = bubble `div[class*="message-"]` terakhir yang mengandung
 `.copy-response-button` (user bubble TIDAK punya copy button). z.ai TIDAK pakai
 `data-testid="assistant-message"`.
 
-> z.ai reply bubble (`div[class*="message-"]`) — bridge transport menunggu copy button
-> (`.copy-response-button`) muncul + ukuran tidak tumbuh. Tidak ada scroll-to-bottom
-> khusus; jika perlu, konfirmasi reachability saat live run pertama.
+> z.ai reply bubble (`div[class*="message-"]`) — capture pakai innerText bubble
+> assistant terakhir (→ `web-dom-general §4` poin 1). Copy button (`.copy-response-button`)
+> HANYA metode capture/fallback, **BUKAN** deteksi "masih menjawab" (jawaban sebelumnya
+> punya copy button → tidak membuktikan sedang generate).
+
+### 3.1 Deteksi "Z masih menjawab" — STOP button (`→ web-dom-general §3`)
+
+Untuk tahu apakah z.ai **MASIH** generate, cek tombol **STOP**. Selama tombol ini ada →
+z.ai belum selesai.
+
+```html
+<div id="bits-c224" data-state="closed" data-delay-duration="200"
+     data-tooltip-trigger="" tabindex="0" type="button" class="flex"
+     aria-label="Stop">
+  <div class="relative size-7">
+    <div class="flex absolute justify-center items-center ...">
+      <button class="flex justify-center items-center p-2 bg-black rounded-full ...">
+        <span class="block bg-white size-3 ..."></span>
+      </button>
+    </div>
+  </div>
+</div>
+```
+
+**Anchor = `[aria-label="Stop"]`** (tombol terluar `div.flex[aria-label="Stop"]`; tombol
+dalam `button` tanpa aria-label — jangan target dalam). Aturan:
+
+- `document.querySelector('[aria-label="Stop"]')` **ADA** → z.ai masih menjawab →
+  **JANGAN** capture, tunggu sampai tombol hilang.
+- Tombol **HILANG** → z.ai selesai → aman capture (lalu verifikasi stabil: node terakhir
+  tidak tumbuh antar poll).
+- Stop button eksplisit = state "generating" dari z.ai sendiri → lebih andal dari cek
+  spinner/copy-button. (z.ai default English; `aria-label="Stop"` — bila nanti ditemukan
+  locale lain, pakai `data-state`/`data-testid` bila ada, else tambah varian label.)
 
 ---
 
