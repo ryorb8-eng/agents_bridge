@@ -64,12 +64,18 @@ single file.
 
 After send, poll the page until the remote finishes. Detect "still generating" by:
 
+- **PRIMARY — per-vendor "stop/generating" button.** Setiap remote punya tombol eksplisit
+  yang ADA saat masih generate, HILANG saat selesai (ChatGPT: `button[data-testid="stop-button"]`,
+  → `web-dom-chatgpt §3.1`). Ini paling andal karena state "generating" dari remote sendiri.
 - a spinner / typing indicator in the **last** assistant message,
-- the last assistant message node growing in size between polls,
-- absence of the copy button on the newest assistant message.
+- the last assistant message node growing in size between polls.
 
-Only capture the reply once it is **stable** (copy button present, no growth for
-~2 consecutive polls, ~1.5s apart). Never extract a partial reply.
+**JANGAN** pakai `copy-button` sebagai deteksi "masih menjawab" — jawaban SEBELUMNYA pun
+sudah punya copy-button, jadi bukan indikator generate. Copy-button hanya metode
+capture/fallback (§4), bukan sinyal selesai.
+
+Only capture the reply once it is **stable** (stop button GONE + node terakhir tidak
+tumbuh antar poll ~2× berturut-turut, ~1.5s apart). Never extract a partial reply.
 
 ---
 

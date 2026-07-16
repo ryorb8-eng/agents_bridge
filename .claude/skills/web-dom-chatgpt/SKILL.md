@@ -167,10 +167,13 @@ berubah ikut locale — jangan di-hardcode). Aturan:
 
 - `document.querySelector('button[data-testid="stop-button"]')` **ADA** → GPT masih
   menjawab → **JANGAN** capture, tunggu sampai tombol hilang.
-- Tombol **HILANG** → GPT selesai → aman capture (lalu verifikasi stabil via §3 poin 1).
-- Ini lebih andal dari cuma cek spinner/copy-button (Stop button eksplisit = state
-  "generating" dari ChatGPT sendiri). Gabungkan dengan §3 (copy button muncul + no
-  growth) sebagai double-confirm.
+- Tombol **HILANG** → GPT selesai → aman capture (lalu verifikasi stabil via §3 poin 1:
+  node assistant terakhir tidak tumbuh antar poll).
+- Stop button eksplisit = state "generating" dari ChatGPT sendiri → **lebih andal** dari
+  cek spinner/copy-button. **CATATAN:** `copy-button` (`Salin respons`/`Copy response`)
+  **TIDAK** dipakai sebagai deteksi "masih menjawab" — jawaban SEBELUMNYA pun punya
+  copy-button, jadi bukan indikator generate. Copy-button hanya metode capture/fallback
+  (§2 / §4), bukan deteksi.
 
 
 
