@@ -116,17 +116,28 @@ BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://chatgpt.com/c/... npx tsx g
    di inspect) — ia toolbar terpisah. Klik tombol terbawah (`buttons[last].click()` +
    `scrollIntoView`) sebagai verifikasi balasan utuh, tapi teks capture ambil dari
    `innerText` node assistant terakhir (poin 1).
+   - **LOCALE-AWARE:** teks `aria-label` mengikuti bahasa UI browser/akun. Bila set **English**
+     → `aria-label="Copy response"` (bukan "Salin respons"). Karena `data-testid` SAMA
+     (`copy-turn-action-button`) di semua bahasa, **gunakan `data-testid` sebagai anchor
+     utama** untuk tombol copy, BUKAN teks `aria-label` (rawan miss kalau locale beda).
 3. **Selector lama `.markdown` MASIH VALID** — `div[data-message-author-role="assistant"]
    .markdown` masih match 3 node di conversation ini. Failure capture sebelumnya BUKAN
    drift selector, melainkan **page salah** (tab kebuka `chrome://new-tab-page/`, bukan
    chatgpt) → `waitForSelector` timeout di halaman kosong. Jadi `readLastReply` WAJIB
    guard: pastikan page url mengandung `chatgpt.com` SEBELUM `waitForSelector`.
 
-Copy button (verified markup):
+Copy button (verified markup, locale-dependent `aria-label`):
 ```html
+<!-- bahasa id -->
 <button ... aria-label="Salin respons"
         data-testid="copy-turn-action-button" data-state="closed">
+
+<!-- bahasa en -->
+<button ... aria-label="Copy response"
+        data-testid="copy-turn-action-button" data-state="closed">
 ```
+Anchor yang stabil lintas-bahasa = `button[data-testid="copy-turn-action-button"]`
+(teks `aria-label` berubah ikut locale).
 
 Reply container (last assistant message) — pakai INI sebagai anchor innerText:
 ```css
