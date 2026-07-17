@@ -45,6 +45,9 @@ balasan tersimpan). Gemini sering ubah DOM — bila drift, re-verify lalu update
 
 ## 1. Focus + send (Gemini-specific)
 
+> **Composer stray-text guard (ALL remotes):** before pasting/typing, verify the open
+> tab in the active profile and clear any leftover text — `web-dom-general §8`.
+
 **JANGAN ketik manual.** Priority order (shared rationale → web-dom-general §2/§3):
 
 1. Isi sumber pertanyaan = `gemini_questions_import/temp_questions_single.md` (purity

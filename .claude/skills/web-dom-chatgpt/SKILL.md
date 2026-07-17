@@ -30,6 +30,9 @@ any `/takequestion` / `/webchain-gpt` / Vision flow).
 
 ## 1. Focus + send (ChatGPT-specific)
 
+> **Composer stray-text guard (ALL remotes):** before pasting/typing, verify the open
+> tab in the active profile and clear any leftover text — `web-dom-general §8`.
+
 **JANGAN ketik manual.** Priority order (shared rationale → web-dom-general §2/§3):
 
 1. Isi sumber pertanyaan = `temp_questions_single.md` (purity rule → web-dom-general §2).

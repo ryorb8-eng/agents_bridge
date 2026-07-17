@@ -255,7 +255,82 @@ bukan statis, tapi **self-tuning** — metode yang lebih sering sukses naik kela
 
 ---
 
-## 8. Mid-task adaptation policy (confidence <50%)
+## 8. Composer stray-text guard — verify the OPEN TAB in the ACTIVE PROFILE first (ALL remotes)
+
+**Mandatory before EVERY send on any remote.** The composer may already contain
+leftover text from a previous (failed / not-sent) attempt — a "stuck" message that
+never submitted. If the bridge blindly pastes/types on top, the new prompt gets
+**concatenated onto the stale text** and/or the half-sent message stays stuck. This
+rule prevents that class of workflow error across ALL vendors (ChatGPT / Claude / Z /
+Gemini).
+
+### 8.1 How to inspect (method used live, 2026-07-17, Z)
+
+The bridge drives the user's Chrome over CDP. To check the composer you must look at
+the **currently-open tab in the profile that is actually in use** — NOT guess from
+memory. Concretely:
+
+1. `chromium.connectOverCDP(<CDP_ENDPOINT>)` → `const ctx = browser.contexts()[0]`.
+2. **Find the live tab** instead of assuming:
+   ```js
+   const page = ctx.pages().find(p => p.url().includes('<remote-host>'));
+   // chatgpt.com | claude.ai | chat.z.ai | gemini.google.com
+   ```
+   (If no tab matches, open one — do NOT send into a page you can't see.)
+3. `await page.bringToFront()` (so you are reading the real foreground tab), wait a beat.
+4. **Read the composer's text content directly** via `page.evaluate`:
+   ```js
+   const info = await page.evaluate(() => {
+     const c = <COMPOSER_QUERY>;          // per-remote composer selector
+     if (!c) return { found: false };
+     return {
+       found: true,
+       // AUTHORITATIVE empty-check = actual text content, NOT a placeholder:
+       value: (c.value ?? c.innerText ?? '').trim(),
+       valueLen: (c.value ?? c.innerText ?? '').length,
+       placeholder: c.getAttribute?.('placeholder') ?? null,
+       sendDisabled: c.closest('form')?.querySelector('button[type=submit]')?.disabled
+                     ?? document.querySelector('<SEND_QUERY>')?.disabled ?? null,
+     };
+   });
+   ```
+5. **Decide from `value`/`valueLen` (authoritative), not the placeholder.**
+   - `valueLen === 0` → composer empty → proceed to paste/type.
+   - `valueLen > 0` → **NOT empty**: composer holds stray/leftover text. **Inspect it**
+     (log `value` so a "stuck" unsent message is visible, never silently overwritten),
+     then **CLEAR** before sending (see §8.2). Do NOT append the new prompt on top.
+
+> ⚠️ **Placeholder is NOT a reliable empty indicator.** LIVE-VERIFIED 2026-07-17
+> (Z, `chat.z.ai/c/bea98e64-…`): a stuck composer held 408 chars of question text yet
+> `placeholder="Send a Message"` was STILL present. So `placeholder` may stay static
+> even when the box is full. The only trustworthy signal is the **text content**
+> (`value`/`innerText`/`.value`). MASTER's heuristic "no placeholder ⇒ not empty" is a
+> valid *sufficient* signal but is NOT necessary — never use placeholder-presence as
+> the sole empty-check. (Detecting "no placeholder" can be a useful *extra* probe, but
+> `value.length` is the one that must drive the decision.)
+
+### 8.2 Clear-then-verify before send (ALL remotes)
+
+When `valueLen > 0` (or whenever you cannot fully trust the composer is empty):
+
+1. **Focus** the composer (per-remote focus method — `web-dom-<remote>` §1).
+2. **Select all + delete:** `Control+A` → `Delete` (or `Backspace`). For contenteditable
+   composers, also fire a `keyboard.press('Backspace')` after.
+3. **RE-VERIFY empty:** re-run the §8.1 `evaluate`; loop until `valueLen === 0` (max ~3
+   tries).
+4. **Only now** paste/type the new prompt, then re-verify `valueLen > 0` (paste landed).
+5. **Send** via the per-remote authoritative send (click `Send` button — NOT blind
+   Enter) and **assert a NEW assistant bubble appeared** (reply count increased) after
+   send; if not, retry send once. This catches a click/Enter that didn't register.
+
+This guard is vendor-agnostic; the only per-remote bits are the **composer selector**
+and the **focus method**, both in `web-dom-<remote>` §1. Implement it in EVERY
+transport (`_new.ts` **AND** `_continue.ts`) — a stray-text bug in one transport alone
+will still break that chain.
+
+---
+
+## 9. Mid-task adaptation policy (confidence <50%)
 
 Engineered policy — **you are permitted to fix / extend / adapt features mid-task**
 when confidence drops below ~50%, as long as you know what you are doing. The bridge

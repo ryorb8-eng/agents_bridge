@@ -40,6 +40,12 @@ it does nothing useful on z.ai and would type garbage into the box.
 
 ## 1. Focus + send (Z-specific)
 
+> **Composer stray-text guard (ALL remotes):** `web-dom-general §8` is the shared rule
+> (verify the open tab in the active profile, clear stray text via `.value` — NOT the
+> placeholder — then verify-empty before typing, assert a new bubble after send). The
+> Z-specific implementation lives in **§1.1** below (Z has no focus shortcut; emptiness
+> is gated by `.sendMessageButton:not([disabled])`).
+
 **JANGAN ketik manual.** Priority order (shared rationale → web-dom-general §2/§3):
 
 1. Isi sumber pertanyaan = `z_questions_import/temp_questions_single.md` (purity rule
@@ -72,6 +78,49 @@ Z composer adalah `<textarea id="chat-input">` (terverifikasi live).
   pakai `keyboard.type(text, {delay:8})`.
 - **Stuck / not sending?** Hard refresh (`Shift+F5`, atau `F5`), lalu re-attach &
   re-locate composer (DOM reset).
+
+#### 1.1 Composer guard — JANGAN kirim sebelum composer benar-benar terisi (Z-specific)
+
+z.ai punya sinyal **otoritatif** "composer berisi prompt saya": tombol
+`.sendMessageButton` **`disabled` saat kosong**, **enabled** setelah ada teks
+(terverifikasi live 2026-07-17, mirror dari `sendBtn` probe di web-dom-gemini §1).
+Gunakan ini sebagai GATE sebelum `Enter` / klik send — jangan kirim textarea kosong
+(bisa jadi no-op → chain `/webchain-z` loop tanpa dapat jawaban).
+
+**Aturan (terapkan di `sendAndWaitForReply` Z, SEBELUM `Enter`/send):**
+
+1. **BEFORE paste: composer HARUS kosong.**
+   ```js
+   const v0 = document.querySelector('#chat-input')?.value || '';
+   ```
+   Jika `v0 !== ''` (sisa Q sebelumnya) → `Control+A` → `Delete`, lalu `sleep(200)`.
+2. **AFTER paste (`Ctrl/Cmd+V` + `sleep(600)`): verifikasi paste masuk.**
+   ```js
+   const v1 = document.querySelector('#chat-input')?.value.length || 0;
+   ```
+   - `v1 > 0` → paste landed, lanjut.
+   - `v1 === 0` → paste **GAGAL silently** (textarea belum ter-fokus benar) →
+     jangan `Enter`. Fallback `typeIntoComposer` (insertText, delay 8), lalu re-cek
+     `v1 > 0`.
+3. **GATE otoritatif = send button ENABLED:**
+   ```js
+   const btn = document.querySelector('.sendMessageButton');
+   const ready = !!btn && !btn.disabled;
+   ```
+   - `ready === true` → aman `Enter` / klik `.sendMessageButton`.
+   - `ready === false` → composer masih kosong (paste + type gagal) →
+     `console.error('[bridge] Composer kosong — batal kirim')` +
+     `process.exit(1)`. **JANGAN** kirim pesan kosong ke z.ai.
+4. **JANGAN andalkan `placeholder` / class untuk deteksi isi.** Placeholder z.ai
+   statis (`"Send a Message"`) & tetap tampil saat kosong; `.value` +
+   `.sendMessageButton:not([disabled])` adalah satu-satunya sumber kebenaran.
+   Ingat juga clipboard bisa kotor (→ web-dom-general §4) — verifikasi via
+   `.value`, BUKAN lewat clipboard.
+
+**Why (Z 2026-07-17, live):** `Ctrl+V` di z.ai bisa silently no-op bila textarea
+belum ke-fokus benar (klik dulu → `sleep(300)` → paste). Guard #2/#3 mencegah
+kirim kosong. Guard ini wajib diimplementasikan di `z/bridge-cdp-z_new.ts` DAN
+`z/bridge-cdp-z_continue.ts` (jangan cuma satu transport).
 
 ---
 

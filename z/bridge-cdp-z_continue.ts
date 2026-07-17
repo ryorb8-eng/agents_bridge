@@ -15,8 +15,9 @@ import { setTimeout as nodeTimeout } from 'node:timers';
  *
  * FOKUS COMPOSER: z.ai TIDAK punya shortcut fokus — composer adalah
  * <textarea id="chat-input"> (placeholder "Send a Message"). Cukup KLIK textarea
- * untuk fokus, lalu paste (clipboard). Tidak ada trik "r"+Backspace (itu khusus
- * ChatGPT/Claude). Enter = SEND, Shift+Enter = New Line. Lihat web-dom-z §1.
+ * untuk fokus, lalu ISI via keyboard.type (TERBUKTI di CDP session ini; clipboard
+ * paste secara SILENTLY NO-OP di sesi ini). Tidak ada trik "r"+Backspace.
+ * Enter = SEND, Shift+Enter = New Line. Lihat web-dom-z §1.
  *
  * Selector chat.z.ai di bawah LIVE-VERIFIED 2026-07-16 (#chat-input, sendMessageButton).
  * Z web bisa berubah; selalu re-verify terhadap snapshot sebelum aksi kritis.
@@ -219,6 +220,26 @@ async function lastNodeSignature(page: Page): Promise<string> {
 }
 
 /**
+ * Tunggu balasan BARU (signature node terakhir berubah dari beforeSig).
+ * Return true bila muncul dalam timeout. Dipakai setelah kirim DAN saat
+ * retry (web-dom-general §8.2) — reuse `beforeSig` agar deteksi konsisten.
+ */
+async function waitForNewReply(page: Page, beforeSig: string, timeoutMs = 150_000): Promise<boolean> {
+  return page.waitForFunction(
+    (sig) => {
+      const bubbles = Array.from(document.querySelectorAll('div[class*="message-"]')) as HTMLElement[];
+      const asst = bubbles.filter((b) => b.querySelector('.copy-response-button'));
+      if (asst.length === 0) return false;
+      const last = asst[asst.length - 1];
+      const cur = (last.innerText || '').slice(0, 200) + '|' + last.innerText.length;
+      return cur !== sig;
+    },
+    beforeSig,
+    { timeout: timeoutMs },
+  ).then(() => true).catch(() => { console.warn('[bridge] Timeout menunggu balasan baru — lanjut cek status.'); return false; });
+}
+
+/**
  * MODE=send: fokus composer via KLIK #chat-input, paste prompt (clipboard),
  * kirim, tunggu generasi selesai, baca balasan terakhir.
  *
@@ -245,60 +266,68 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
     await composerEl.click().catch(() => {});
     await sleep(300);
   } else {
-    console.warn('[bridge] Composer #chat-input tidak ditemukan — lanjut paste (mungkin gagal).');
+    console.warn('[bridge] Composer #chat-input tidak ditemukan — lanjut isi (mungkin gagal).');
   }
 
-  // === PRIORITY: clipboard paste (Ctrl/Cmd+V) ===
-  let pasted = false;
-  try {
-    const ctx = page.context();
-    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
-    await page.evaluate((text) => navigator.clipboard.writeText(text), prompt);
-    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V');
-    await sleep(600);
-    pasted = true;
-    console.log('[bridge] Paste dikirim (clipboard method).');
-  } catch (e) {
-    console.warn('[bridge] Clipboard/paste gagal, fallback ketik manual:', (e as Error).message);
+  // === COMPOSER GUARD (web-dom-general §8 / web-dom-z §1.1): bersihkan sisa teks lama
+  // & LOG isinya (web-dom-general §8.1: "cek apa isi nya" — jangan diam-diam overwrite).
+  // Placeholder z.ai statis ("Send a Message") meski berisi; penentu otoritatif = .value.
+  const stale = await page.evaluate(() => (document.querySelector('textarea#chat-input') as HTMLTextAreaElement | null)?.value || '');
+  if (stale.trim() !== '') {
+    console.warn(`[bridge] COMPOSER GUARD: ditemukan sisa teks lama (${stale.trim().length} char) sebelum isi — isi: "${(stale.trim().slice(0, 80)).replace(/\s+/g, ' ')}…". Akan dibersihkan dulu.`);
+    await page.keyboard.press('Control+A'); await sleep(120);
+    await page.keyboard.press('Delete'); await sleep(200);
   }
 
-  // === FALLBACK: insertText manual ===
-  if (!pasted) {
-    const typed = await typeIntoComposer(page, prompt);
-    if (!typed) {
-      console.error('[bridge] Tidak bisa mengirim ke composer (paste & ketik gagal).');
-      process.exit(1);
-    }
-  } else {
-    console.log('[bridge] Menunggu generasi…');
+  // === ISI composer: keyboard.type (PRIMARY & TERBUKTI di CDP session ini) ===
+  // CATATAN: clipboard paste (Ctrl/Cmd+V via navigator.clipboard) TIDAK dipakai sbg
+  // primary — terbukti SILENTLY NO-OP di sesi CDP ini (composer tetap kosong, tidak
+  // ada redirect /c/<uuid>). Kita KETIK langsung (human-like delay).
+  const filled = await typeIntoComposer(page, prompt);
+  if (!filled) {
+    console.error('[bridge] Tidak bisa mengisi composer (klik + type gagal).');
+    process.exit(1);
   }
 
-  // Kirim: Enter (Z kirim dgn Enter di composer) atau klik send button.
-  try {
-    await page.keyboard.press('Enter');
-    await sleep(400);
-  } catch {
-    /* noop */
-  }
-  // Pastikan terkirim: bila masih ada teks & send button visible, klik.
-  const sendVisible = await page.$(`${SEND_BUTTON}:visible`).catch(() => null);
-  if (sendVisible) {
-    try { await sendVisible.click({ timeout: 5_000 }); } catch { /* noop */ }
-  }
+  // Verifikasi composer benar-benar terisi (gate otoritatif: .value>0 + send enabled).
+  // Batal & exit(1) bila tetap kosong (cegah kirim pesan kosong → loop no-op).
+  await assertComposerFilled(page);
+
+  // === KIRIM (web-dom-z §1): Enter, lalu klik .sendMessageButton sbg otoritatif.
+  // CATATAN: SEND_BUTTON = daftar selector koma; jgn pakai `${SEND_BUTTON}:visible`
+  // karena :visible hanya ter-bind ke selector TERAKHIR.
+  const sendOnce = async () => {
+    try { await page.keyboard.press('Enter'); await sleep(400); } catch { /* noop */ }
+    const sendVisible = await page.$(SEND_BUTTON).catch(() => null);
+    if (sendVisible) { try { await sendVisible.click({ timeout: 5_000 }); } catch { /* noop */ } }
+  };
+  await sendOnce();
+
+  // === CAPTURE URL SESI — SETELAH pesan benar-benar terkirim ===
+  // (continue.ts = skeleton: log ringan ke stdout; _new.ts punya log .log penuh.)
+  await sleep(Number(process.env.BRIDGE_SESSION_CAPTURE_DELAY_MS || 2000));
+  console.log(`[bridge] Capture URL sesi (setelah kirim): ${page.url()}`);
 
   // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
-  const sigChanged = await page.waitForFunction(
-    (sig) => {
-      const bubbles = Array.from(document.querySelectorAll('div[class*="message-"]')) as HTMLElement[];
-      const asst = bubbles.filter((b) => b.querySelector('.copy-response-button'));
-      if (asst.length === 0) return false;
-      const last = asst[asst.length - 1];
-      const cur = (last.innerText || '').slice(0, 200) + '|' + last.innerText.length;
-      return cur !== sig;
-    },
-    beforeSig,
-    { timeout: 150_000 },
-  ).then(() => true).catch(() => { console.warn('[bridge] Timeout menunggu balasan baru — lanjut cek status.'); return false; });
+  let sigChanged = await waitForNewReply(page, beforeSig);
+
+  // === RETRY KIRIM 1x (web-dom-general §8.2): bila composer MASIH berisi tapi belum
+  // ada bubble baru = pesan "stuck" (Enter/click tidak ter-register, spt. laporan MASTER).
+  // Bersihkan → isi ulang → kirim lagi. Cegah loop tanpa jawaban.
+  if (!sigChanged) {
+    const stillHas = (await page.evaluate(() => (document.querySelector('textarea#chat-input') as HTMLTextAreaElement | null)?.value || '')).trim();
+    if (stillHas.length > 0) {
+      console.warn(`[bridge] Belum ada bubble baru & composer masih berisi (${stillHas.length} char) — RETRY kirim 1x.`);
+      await page.keyboard.press('Control+A'); await sleep(120);
+      await page.keyboard.press('Delete'); await sleep(200);
+      await typeIntoComposer(page, prompt);
+      await assertComposerFilled(page);
+      await sendOnce();
+      sigChanged = await waitForNewReply(page, beforeSig);
+    } else {
+      console.warn('[bridge] Belum ada bubble baru & composer kosong — lanjut cek status (mungkin rate-limit).');
+    }
+  }
   console.log(`[bridge] Balasan baru terdeteksi: ${sigChanged}`);
 
   // Tunggu generasi sTABIL: copy button muncul + ukuran tidak tumbuh.
@@ -317,6 +346,43 @@ async function typeIntoComposer(page: Page, prompt: string): Promise<boolean> {
     return true;
   }
   return false;
+}
+
+/**
+ * COMPOSER GUARD (web-dom-z §1.1). Verifikasi composer benar-benar terisi
+ * SEBELUM kirim — z.ai `.sendMessageButton` `disabled` saat kosong, enabled
+ * setelah ada teks. Gate ini mencegah `Enter`/`Ctrl+V` silently no-op (textarea
+ * belum fokus) mengirim pesan KOSONG → chain /webchain-z loop tanpa jawaban.
+ * Exit(1) bila composer tetap kosong setelah paste + type fallback.
+ */
+async function assertComposerFilled(page: Page): Promise<void> {
+  // Bersihkan sisa teks lama (jika ada) biar deteksi murni milik Q ini.
+  const v0 = await page.evaluate(() => (document.querySelector('textarea#chat-input') as HTMLTextAreaElement | null)?.value || '');
+  if (v0.trim() !== '') {
+    await page.keyboard.press('Control+A'); await sleep(120);
+    await page.keyboard.press('Delete'); await sleep(200);
+  }
+
+  // Re-paste bila paste awal ke-skip / gagal masuk.
+  let v1 = await page.evaluate(() => (document.querySelector('textarea#chat-input') as HTMLTextAreaElement | null)?.value.length || 0);
+  if (v1 === 0) {
+    const pm = await page.$(`${COMPOSER}:visible`) ?? await page.$(COMPOSER);
+    if (pm) { await pm.click().catch(() => {}); await typeIntoComposer(page, PROMPT); }
+    v1 = await page.evaluate(() => (document.querySelector('textarea#chat-input') as HTMLTextAreaElement | null)?.value.length || 0);
+  }
+
+  // Gate otoritatif: send button enabled.
+  const ready = await page.evaluate(() => {
+    const btn = document.querySelector('.sendMessageButton') as HTMLButtonElement | null;
+    const len = (document.querySelector('textarea#chat-input') as HTMLTextAreaElement | null)?.value.length || 0;
+    return !!btn && !btn.disabled && len > 0;
+  });
+
+  if (!ready || v1 === 0) {
+    console.error('[bridge] COMPOSER GUARD: composer KOSONG (paste & type gagal) — BATAL kirim untuk cegah no-op.');
+    process.exit(1);
+  }
+  console.log('[bridge] COMPOSER GUARD: composer terisi & send button enabled — aman kirim.');
 }
 
 /**
