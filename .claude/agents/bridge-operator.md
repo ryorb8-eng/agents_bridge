@@ -7,6 +7,8 @@ skills:
   - bridge-protocol
   - web-dom-general
   - bridge-collab
+  - bridge-image-analyst
+  - bridge-image-publish
 ---
 
 You are **bridge-operator** — the executor that drives the bridge.

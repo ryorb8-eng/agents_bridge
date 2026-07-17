@@ -209,21 +209,23 @@ Never loop forever on this button. 3+3 attempts then proceed.
 ## 5. Vision bonus — "Mata" (the eye; GPT is the Vision workhorse)
 
 The local Claude CLI has **no Vision**. To let the local AI "see" an image via the
-remote AI:
+remote AI, use the **vendor-agnostic** `bridge-image-analyst` (orchestrator) +
+`bridge-image-publish` (the single source of truth for the public-URL step):
 
-- **Public image URL** → paste the URL straight into the ChatGPT composer and ask
-  (use `docs/prompts/prompt_image-to-markdown.md`).
-- **Local image** →
-  1. Copy it to `docs/TEMP_IMAGES/` (create the dir if missing).
-  2. Rename to a **basic** name (e.g. `model_kacamata_viral.webp`); if more than one
-     file, append numbering (`model_kacamata_viral_01.webp`, `_02`, …).
-  3. **Sync to GitHub** so it gets a public RAW URL:
-     `https://github.com/ryorb8-eng/agents_bridge/raw/refs/heads/main/docs/TEMP_IMAGES/<name>`
-  4. Paste that RAW URL into ChatGPT (use `gpt/bridge-cdp-gpt_new.ts` — Vision) and run
-     the image-to-markdown prompt.
+- **Sync from Win11** → `bridge-image-analyst` pulls the image from
+  `C:\Users\ryoro\Pictures\Screenshots` (read-only scoped SSH) into
+  `docs/TEMP_IMAGES/screenshots/` + writes `docs/TEMP_IMAGES/metadata/<name>.yaml`.
+- **Publish a public RAW URL** → `bridge-image-publish`:
+  `https://github.com/ryorb8-eng/agents_bridge/raw/refs/heads/main/docs/TEMP_IMAGES/screenshots/<name>`
+  (commit + push; the publish recipe now lives ONLY in `bridge-image-publish`, not here).
+- **Hand to GPT** → paste the RAW URL into the ChatGPT composer with the
+  image-to-markdown prompt (`docs/prompts/prompt_image-to-markdown.md`), using
+  `gpt/bridge-cdp-gpt_new.ts` — Vision. GPT's textual description becomes the local
+  AI's "eyes."
 
-The remote AI's textual description becomes the local AI's "eyes." (Claude Web and Z
-can also do Vision via their own `_new.ts`; GPT is the canonical example.)
+(Claude Web and Z can also do Vision via their own `_new.ts`; GPT is the canonical
+example. The publish URL pattern is defined ONCE in `bridge-image-publish` so it no
+longer drifts per-vendor.)
 
 ---
 

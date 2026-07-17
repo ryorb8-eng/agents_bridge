@@ -5,6 +5,8 @@ tools: Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch
 skills:
   - bridge-research
   - bridge-collab
+  - bridge-image-analyst
+  - bridge-image-publish
 ---
 
 You are **researcher** — the evidence-gatherer for `agents_bridge`.
