@@ -70,12 +70,42 @@ edit/delete anything on Win11. (Deployment steps: `docs/TEMP_IMAGES/DEPLOY_scree
   fetched_at: "2026-07-17T17:30:00Z"
   bytes: 123456
   mime: "image/png"
+  resolution: "1600x900"          # parsed from PNG IHDR at fetch time
   local_path: "docs/TEMP_IMAGES/screenshots/Screenshot 2026-07-17 172739.png"
   ```
 
 > Format choice: **YAML** (not JSON) — human-readable, diff-friendly in git, and the
 > bridge's other metadata (message-log, ADRs) is prose/markdown, so YAML fits the
 > workflow better than JSON brackets.
+
+### TEMP_IMAGES layout (the 3-folder contract)
+
+`docs/TEMP_IMAGES/` is the project's Vision working space. Three sibling folders,
+each with a strict role (same basename `<name>` across all three for trivial matching):
+
+| Folder | Role | Written by | Content |
+|---|---|---|---|
+| `screenshots/` | RAW image bytes | `fetch_screenshots.sh` | the image file itself (`<name>.png`) |
+| `metadata/` | OBJECTIVE facts | `fetch_screenshots.sh` (+ analysis-step enrichment) | `<name>.yaml` — size, mime, resolution, source, provenance |
+| `description/` | AI ANALYSIS output | this skill (§4) | `<name>.md` — the remote AI's structured v2.0 analysis |
+
+The split keeps **facts** (YAML, verifiable) separate from **interpretation**
+(Markdown, the remote AI's description). The remote AI is an untrusted peer (ADR-0004)
+so its prose lives ONLY in `description/` — never let it mutate `metadata/` facts or
+`scripts/`.
+
+> **`metadata/` is enriched after analysis** (see §4): when the remote returns the
+> description, append these provenance fields to `metadata/<name>.yaml` so the facts
+> file records *who/when/which session* produced the analysis:
+> ```yaml
+> description_file: "docs/TEMP_IMAGES/description/<name>.md"
+> analysis_vendor: "GPT"
+> analysis_model: "GPT-5.5"
+> analysis_time: "2026-07-17T18:41:00+07:00"
+> analysis_session_url: "https://chatgpt.com/c/..."
+> analysis_conversation_title: "Geometry Pattern"
+> analysis_overall_confidence: 0.96
+> ```
 
 **Specific vs "all":** MASTER may name one file (`Screenshot …172739.png`) or say "all
 Screenshots" → use `get-all` / `fetch_screenshots.sh all`. When "all", iterate each
@@ -114,10 +144,40 @@ Paste the RAW URL into the chosen remote's composer with the image-to-markdown /
 describe-image prompt (`docs/prompts/prompt_image-to-markdown.md`). The remote returns
 TEXT. That text = the local AI's understanding of the image.
 
-- Use the remote's `_new.ts` Vision mode (e.g. `gpt/bridge-cdp-gpt_new.ts` for ChatGPT).
+- Use the remote's `_new.ts` Vision mode (e.g. `gpt/bridge-cdp-gpt_new.ts` for ChatGPT;
+  set `BRIDGE_IMAGE_PATH` for LOCAL-file Vision via Ctrl+U — see `web-dom-chatgpt §5.1`).
 - Scrape the reply per `web-dom-<remote>` (innerText authoritative, §4 general).
-- Append the remote's textual description to the image's metadata YAML
-  (`description:` / `analysis:` field) so the result is reusable.
+- **Save the analysis to `docs/TEMP_IMAGES/description/<name>.md`** — same basename as
+  the image (do NOT swap extensions; `<name>.md` where `<name>` already excludes `.png`).
+  The remote AI's returned text goes here VERBATIM as the analysis body. This is the
+  canonical, reusable "vision" artifact for this image.
+- **Enrich `metadata/<name>.yaml`** with the analysis provenance (vendor, model, time,
+  session URL, conversation title, overall confidence) — see the yaml block in §1
+  "TEMP_IMAGES layout". Facts stay in YAML; interpretation stays in `description/`.
+
+Example §4 flow (per image):
+
+```bash
+# 1) remote AI returned a v2.0 structured Markdown analysis (per docs/prompts/
+#    prompt_image-to-markdown.md). Write it to description/.
+IMG="Screenshot 2026-07-17 172620"   # basename WITHOUT .png
+printf '%s\n' "$REMOTE_REPLY" > "docs/TEMP_IMAGES/description/${IMG}.md"
+
+# 2) enrich metadata/ with analysis provenance (append, do not overwrite facts).
+cat >> "docs/TEMP_IMAGES/metadata/${IMG}.yaml" <<YAML
+description_file: "docs/TEMP_IMAGES/description/${IMG}.md"
+analysis_vendor: "GPT"
+analysis_model: "GPT-5.5"
+analysis_time: "2026-07-17T18:41:00+07:00"
+analysis_session_url: "https://chatgpt.com/c/..."
+analysis_conversation_title: "Geometry Pattern"
+analysis_overall_confidence: 0.96
+YAML
+```
+
+> The 3-folder contract is the project's house rule for Vision output. `screenshots/`
+> = raw bytes, `metadata/` = objective facts, `description/` = AI interpretation
+> (§1). Keep them separate.
 
 ---
 
