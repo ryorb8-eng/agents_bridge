@@ -227,6 +227,33 @@ remote AI, use the **vendor-agnostic** `bridge-image-analyst` (orchestrator) +
 example. The publish URL pattern is defined ONCE in `bridge-image-publish` so it no
 longer drifts per-vendor.)
 
+### 5.1 Vision via LOCAL FILE (Ctrl+U attach) — LIVE-VERIFIED 2026-07-17, Profile 2
+
+Selain URL publik (§5), GPT transport sekarang bisa mengirim gambar **LOKAL dari sisi
+Linux** langsung ke composer ChatGPT lewat shortcut `Ctrl+U`:
+
+```bash
+# Vision dari file lokal (gambar di Linux, di-upload ke native picker ChatGPT):
+BRIDGE_MODE=send \
+BRIDGE_CDP='http://localhost:18180' \
+BRIDGE_PROFILE='Profile 2' \
+BRIDGE_IMAGE_PATH="/abs/path/gambar.png" \
+BRIDGE_PROMPT="Identifikasi gambar ini..." \
+npx tsx gpt/bridge-cdp-gpt_new.ts
+```
+
+- `bridge-cdp-gpt_new.ts` memanggil `attachImage()` (lihat file): fokus composer
+  (`Shift+Esc`) → `Ctrl+U` membuka native file-picker (event `filechooser`) →
+  `setFiles(BRIDGE_IMAGE_PATH)`. **Gambar di-upload dari Linux, TIDAK perlu ada di
+  Win11.**
+- **Fallback:** bila `Ctrl+U` tidak membuka chooser, klik tombol Lampirkan/+
+  (`ATTACH_BUTTON`).
+- Setelah gambar terlampir, prompt diketik (clipboard paste) + `Enter` seperti biasa.
+- `BRIDGE_IMAGE_PATH` dikosongkan = mode Vision URL/prompt teks normal (no-op attach).
+
+Keunggulan vs URL-publik: tidak perlu commit+push ke GitHub dulu; langsung dari disk
+Linux. Cocok untuk gambar rahasia/sementara yang tidak ingin di-publish RAW URL.
+
 ---
 
 ## 6. Auto-learning banner (`→ web-dom-general §7` for the full rule)

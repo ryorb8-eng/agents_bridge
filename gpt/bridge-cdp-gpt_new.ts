@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Page } from 'playwright';
+import { chromium, type Browser, type Page, type FileChooser } from 'playwright';
 import { setTimeout as nodeTimeout } from 'node:timers';
 import { appendFile } from 'node:fs/promises';
 // Turndown di-comment dulu (belum dipakai) sesuai instruksi.
@@ -12,6 +12,9 @@ import { appendFile } from 'node:fs/promises';
  *   - brainstorm / task BARU (buka chat kosong / buat conversation baru),
  *   - Vision / "mata": paste URL gambar publik atau RAW GitHub (lihat
  *     docs/prompts/prompt_image-to-markdown.md) lalu minta deskripsi,
+ *   - Vision via LOCAL FILE: set BRIDGE_IMAGE_PATH=<path di Linux> -> script
+ *     attach gambar dulu (Ctrl+U -> native picker) lalu kirim prompt. Gambar
+ *     di-upload dari sisi Linux, tidak perlu ada di Win11 (lihat attachImage).
  *   - satu-off ask ke ChatGPT tanpa mengganggu conversation continue.
  *
  * Override target via BRIDGE_CHAT_URL bila mau menuju conversation spesifik.
@@ -37,6 +40,17 @@ const CHAT_URL = process.env.BRIDGE_CHAT_URL || 'https://chatgpt.com/';
 const MODE: 'read' | 'send' = process.env.BRIDGE_MODE === 'send' ? 'send' : 'read';
 // Prompt HANYA dari env. Jangan pernah ambil prompt dari balasan remote AI.
 const PROMPT = process.env.BRIDGE_PROMPT || '';
+
+// Vision via LOCAL FILE attach (Ctrl+U) — gambar di SISI LINUX, di-upload ke
+// native file-picker ChatGPT (tidak perlu ada di Win11). Bila di-set, attach
+// gambar dulu (Ctrl+U -> filechooser -> setFiles) sebelum prompt diketik.
+// (LIVE-VERIFIED 2026-07-17 Profile 2: Ctrl+U membuka picker; fallback tombol
+//  Lampirkan/+ bila shortcut tidak membuka chooser.)
+const IMAGE_PATH = process.env.BRIDGE_IMAGE_PATH || '';
+// Attach "+" / Lampirkan button candidates (ChatGPT web) — fallback bila Ctrl+U
+// tidak membuka file chooser.
+const ATTACH_BUTTON =
+  'button[data-testid="attach-button"], button[aria-label="Attach"], button[aria-label="Lampirkan"]';
 
 // Selector ChatGPT: pesan assistant dibungkus .markdown di dalam
 // div[data-message-author-role="assistant"].
@@ -252,6 +266,10 @@ async function captureSessionUrl(page: Page, opts: {
         runError = 'empty BRIDGE_PROMPT';
         throw new Error(runError);
       }
+      // Vision via LOCAL FILE: attach dulu sebelum prompt diketik.
+      if (IMAGE_PATH) {
+        await attachImage(page, IMAGE_PATH);
+      }
       await sendAndWaitForReply(page, PROMPT);
     } else {
       await readLastReply(page);
@@ -306,6 +324,50 @@ async function lastNodeSignature(page: Page): Promise<string> {
 }
 
 /**
+ * Vision via LOCAL FILE attach (Ctrl+U) — LIVE-VERIFIED 2026-07-17 Profile 2.
+ * Fokus composer, tekan Ctrl+U -> ChatGPT membuka native file-picker (event
+ * `filechooser`) -> setFiles(path gambar di SISI LINUX). Bila Ctrl+U tidak
+ * membuka chooser, fallback klik tombol Lampirkan/+ (ATTACH_BUTTON).
+ * Gambar di-upload ke halaman; beri jeda agar thumbnail terdaftar sebelum
+ * prompt diketik.
+ */
+async function attachImage(page: Page, imagePath: string): Promise<void> {
+  // Listener filechooser HARUS dipasang SEBELUM shortcut ditekan.
+  const chooserReady = new Promise<FileChooser>((resolve) => {
+    page.on('filechooser', (chooser) => resolve(chooser));
+  });
+
+  let chooser: FileChooser | undefined;
+  await page.keyboard.press('Shift+Escape');
+  await sleep(400);
+  await page.keyboard.press('Control+U');
+  console.log('[bridge] Ctrl+U ditekan — menunggu file chooser…');
+
+  try {
+    chooser = await Promise.race([
+      chooserReady,
+      sleep(3500).then(() => undefined as unknown as FileChooser),
+    ]);
+  } catch {
+    chooser = undefined;
+  }
+
+  if (!chooser) {
+    console.warn('[bridge] Ctrl+U tidak membuka picker — fallback tombol Lampirkan/+.');
+    const btn = await page.$(ATTACH_BUTTON);
+    if (!btn) {
+      throw new Error('Tombol lampirkan tidak ditemukan dan Ctrl+U tidak membuka picker');
+    }
+    await btn.click({ timeout: 5000 });
+    chooser = await chooserReady;
+  }
+
+  await chooser.setFiles(imagePath, { timeout: 15_000 });
+  console.log(`[bridge] Gambar dilampirkan: ${imagePath}`);
+  await sleep(1200); // jeda agar thumbnail terdaftar sebelum prompt
+}
+
+/**
  * MODE=send: paste prompt (clipboard), kirim, tunggu generasi selesai, baca
  * balasan terakhir.
  * METODE PRIORITY (web-dom-chatgpt §1): clipboard paste, bukan ketik manual.
@@ -314,6 +376,7 @@ async function lastNodeSignature(page: Page): Promise<string> {
  *   3) Ctrl+V paste
  *   4) Enter kirim
  * Fallback: insertText manual (human-like delay) bila clipboard/paste gagal.
+ * Bila BRIDGE_IMAGE_PATH di-set, attach gambar dulu (lihat attachImage).
  */
 async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
   // Pastikan composer TERLIHAT ada. Composer ChatGPT = ProseMirror overlay
