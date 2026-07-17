@@ -59,3 +59,37 @@ Never improvise selectors elsewhere.
 
 - `playwright-cli` (global) or `npx playwright-cli` — the CDP driver.
 - Verify it with `playwright-cli --version` before any bridge session.
+
+---
+
+## Global SOP — auto-apply to every agent/subagent in this project
+
+These global capabilities are NOT optional and need NOT be restated per task. Every
+agent (main session, subagent, autochain, webchain) working inside `agents_bridge`
+MUST honor them automatically:
+
+- **Confidence Decision Engine (CDE)** — gate every action on the dimensions
+  `U/K/A/I/V/D/C`. Hard floors (global): `U`<90% → STOP & clarify; `K`<95% → research
+  ladder then escalate; `A`<90% → design gate; `V`<90% → tests+lint; `D`<90% → no deploy;
+  `C` hostile → refuse. Source of truth: `/home/s/.claude/docs/CONFIDENCE_ENGINE/README.md`
+  (also `ANTI_OVERCONFIDENCE.md`).
+- **Knowledge Source Ranking (KSRP)** + **Knowledge Evolution (KEP)** — algorithm +
+  credibility ladder for picking/ranking/evolving sources. `/home/s/.claude/protocols/`
+  + data registries in `/home/s/.claude/knowledge/`. CDE is the floor; KSRP/KEP never
+  lower a gate.
+- **Bridge Collaboration (vendor-independent)** — the native capability layer for
+  deciding WHEN to consult another AI vendor (Claude/Gemini/GPT/Z) over the bridge.
+  Skill: `/home/s/.claude/skills/bridge-collab/SKILL.md`. Full SOP:
+  `/home/s/TASK/agents_bridge/docs/bridge-collab/` (README, LIFECYCLE, DECISION_MATRIX,
+  VENDOR_REGISTRY, CEP_DCP_INTEGRATION, FALLBACK, SELF_EVAL_METHOD_LEARNING). Canonical
+  protocols: `protocols/context_exchange_protocol.md` (CEP),
+  `protocols/delta_context_protocol.md` (DCP),
+  `docs/prompts/bridge_ai_handshake.md` (ABHP). Engine picks the vendor from the registry
+  by availability/score/fit — it does NOT hardcode a vendor.
+- **Global SOP router** — `/home/s/.claude/GLOBAL.md` (map of every global SOP, the
+  Global↔CWD boundary). CEP/DCP/ABHP are CWD-specific; they are *linked* here, not
+  duplicated in global CLAUDE.md.
+
+> Subagents: list `bridge-collab` in your `skills:` and load `web-dom-general` when you
+> will drive any remote chat UI. The governing sentence above is authoritative even if a
+> specific subagent `.md` does not echo it.

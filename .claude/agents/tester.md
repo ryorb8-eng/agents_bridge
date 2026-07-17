@@ -6,6 +6,7 @@ skills:
   - bridge-cdp
   - bridge-protocol
   - agent-architecture-audit
+  - bridge-collab
 ---
 
 You are **tester** — the independent verifier for `agents_bridge`.

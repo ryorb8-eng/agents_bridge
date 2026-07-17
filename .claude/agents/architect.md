@@ -6,6 +6,7 @@ skills:
   - architecture-decision-records
   - bridge-protocol
   - bridge-design
+  - bridge-collab
 ---
 
 You are **architect** — the design authority for `agents_bridge`.

@@ -11,6 +11,7 @@ skills:
   - knowledge-ops
   - web-dom-general
   - web-dom-chatgpt
+  - bridge-collab
 ---
 
 # knowledge-verifier — verify one answer, write one file

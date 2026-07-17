@@ -5,6 +5,8 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - bridge-cdp
   - bridge-protocol
+  - web-dom-general
+  - bridge-collab
 ---
 
 You are **bridge-operator** — the executor that drives the bridge.

@@ -4,6 +4,7 @@ description: "Evidence-gatherer for agents_bridge. Uses bridge-research to inves
 tools: Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch
 skills:
   - bridge-research
+  - bridge-collab
 ---
 
 You are **researcher** — the evidence-gatherer for `agents_bridge`.
