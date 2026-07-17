@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/s/TASK/agents_bridge/.claude/hooks/sop-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /home/s/TASK/agents_bridge/.claude/hooks/vision-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /home/s/TASK/agents_bridge/.claude/hooks/transport-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /home/s/TASK/agents_bridge/.claude/hooks/browser-cleanup-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
