@@ -59,8 +59,11 @@ const COPY_BUTTON = '.copy-response-button';
 // Composer Z: textarea with id="chat-input" (verified live 2026-07-16).
 // Also match generic contenteditable / message-textarea for resilience.
 const COMPOSER = 'textarea#chat-input, textarea[aria-label*="message" i], div[contenteditable="true"], div.ProseMirror';
+// Send button (LIVE-VERIFIED 2026-07-17): button.sendMessageButton / button[type="submit"].
+// NOTE: case-sensitive aria-label "Send Message" (capital M) tdk diandalkan sbg
+// satu-satunya — klik .sendMessageButton sbg otoritatif. Flag "i" bila pakai aria-label.
 const SEND_BUTTON =
-  'button[aria-label="Send Message"], button[aria-label="Send"], button[type="submit"], .sendMessageButton';
+  'button.sendMessageButton, button[type="submit"], button[aria-label="Send Message" i], button[aria-label="Send" i]';
 
 // Default: tutup page + browser lalu exit 0 (biar chain otomatis lanjut).
 // Set BRIDGE_KEEP_OPEN=1 untuk biarkan terbuka (inspeksi manual).
@@ -353,22 +356,26 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
     console.log('[bridge] Menunggu generasi…');
   }
 
-  // === CAPTURE URL SESI AWAL (2s stlh pesan pertama) — SEBELUM refresh ===
-  // Simpan URL homepage -> /c/<uuid> ke .log agar bisa di-reopen sbg pengganti F5.
-  await captureSessionUrl(page, { profile: PROFILE, promptChars: PROMPT.length });
-
   // Kirim: Enter (Z kirim dgn Enter di composer) atau klik send button.
+  // CSS attribute case-sensitive berarti butuh flag "i"; klik .sendMessageButton sbg otoritatif.
   try {
     await page.keyboard.press('Enter');
     await sleep(400);
   } catch {
     /* noop */
   }
-  // Pastikan terkirim: bila masih ada teks & send button visible, klik.
-  const sendVisible = await page.$(`${SEND_BUTTON}:visible`).catch(() => null);
+  // Pastikan terkirim: klik send button (button.sendMessageButton / type=submit).
+  // CATATAN: SEND_BUTTON adalah daftar selector dipisah koma; jangan pakai
+  // `${SEND_BUTTON}:visible` karena :visible HANYA ter-binding ke selector TERAKHIR.
+  const sendVisible = await page.$(SEND_BUTTON).catch(() => null);
   if (sendVisible) {
     try { await sendVisible.click({ timeout: 5_000 }); } catch { /* noop */ }
   }
+
+  // === CAPTURE URL SESI AWAL — SETELAH pesan benar-benar terkirim ===
+  // Z memutasi homepage -> /c/<uuid> HANYA SETELAH pesan dikirim. Jadi capture
+  // SETELAH click, bukan sebelum (sebelumnya bug -> selalu "/").
+  await captureSessionUrl(page, { profile: PROFILE, promptChars: PROMPT.length });
 
   // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
   const sigChanged = await page.waitForFunction(
