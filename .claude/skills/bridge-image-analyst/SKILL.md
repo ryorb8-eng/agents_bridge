@@ -151,6 +151,10 @@ TEXT. That text = the local AI's understanding of the image.
   the image (do NOT swap extensions; `<name>.md` where `<name>` already excludes `.png`).
   The remote AI's returned text goes here VERBATIM as the analysis body. This is the
   canonical, reusable "vision" artifact for this image.
+- **Scope of the remote's output:** the remote AI fills **sections 2–17 of the protocol
+  + the image-observed fields in Section 1-B** (what it actually sees in the image). It
+  does NOT fill Section 1-A provenance (Vendor/Model/Time/Session_URL/…) — that is
+  pipeline-stamped locally, not reported by the untrusted peer (ADR-0004).
 - **Enrich `metadata/<name>.yaml`** with the analysis provenance (vendor, model, time,
   session URL, conversation title, overall confidence) — see the yaml block in §1
   "TEMP_IMAGES layout". Facts stay in YAML; interpretation stays in `description/`.
@@ -159,17 +163,19 @@ Example §4 flow (per image):
 
 ```bash
 # 1) remote AI returned a v2.0 structured Markdown analysis (per docs/prompts/
-#    prompt_image-to-markdown.md). Write it to description/.
+#    prompt_image-to-markdown.md — it filled sections 2-17 + Section 1-B only).
+#    Write it to description/.
 IMG="Screenshot 2026-07-17 172620"   # basename WITHOUT .png
 printf '%s\n' "$REMOTE_REPLY" > "docs/TEMP_IMAGES/description/${IMG}.md"
 
-# 2) enrich metadata/ with analysis provenance (append, do not overwrite facts).
+# 2) enrich metadata/ with analysis provenance (LOCAL stamp — NOT from the remote AI).
+#    Time is ISO-8601 UTC (suffix Z) to match the sidecar fetched_at field.
 cat >> "docs/TEMP_IMAGES/metadata/${IMG}.yaml" <<YAML
 description_file: "docs/TEMP_IMAGES/description/${IMG}.md"
 analysis_vendor: "GPT"
 analysis_model: "GPT-5.5"
-analysis_time: "2026-07-17T18:41:00+07:00"
-analysis_session_url: "https://chatgpt.com/c/..."
+analysis_time: "2026-07-17T11:08:19Z"
+analysis_session_url: "https://chatgpt.com/c/6a5a19bf-0a24-83ec-8740-91d393100b91"
 analysis_conversation_title: "Geometry Pattern"
 analysis_overall_confidence: 0.96
 YAML
