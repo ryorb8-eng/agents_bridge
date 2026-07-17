@@ -58,3 +58,64 @@
 ## STATUS (2026-07-16)
 - Belum di-commit (working tree: 6 transport + z_answers_import/temp_answers.md + z log +
   README watchdog note + ekstraksi). `tsc --noEmit` exit 0.
+
+## [2026-07-18] Rule: new chat HANYA di awal sesi — setelah itu re-open url sesi (text+Vision, all vendor)
+
+- **KOREKSI MASTER (perilaku eksekusi new chat):** `new chat` (`*_new.ts`) HANYA dipakai
+  **SAAT MEMULAI SESI**. Setelah itu — round ke-2, MAUPUN gambar ke-2..N dalam task
+  multi-gambar — **JANGAN** new chat lagi dan **JANGAN** F5/refresh. Gunakan **url sesi**
+  yang tercatat di `.log`: re-open URL itu untuk **lanjutkan sesi yang SAMA**. Tujuannya:
+  AI vendor mengakumulasi pemahaman antar turn/gambar → hasil lebih konsisten. Kasus lalu
+  (5-image task) salah: tiap gambar buka new chat → vendor tidak punya konteks kumulatif.
+- **LOWERCASE label:** "URL SESI" → "url sesi" di-ubah DI MANA-MANA (web-dom-general §4.1,
+  JSDoc + console.log + header-comment di ke-4 `*_new.ts` gpt/claude/gemini/z, dan
+  `z/bridge-cdp-z_continue.ts`) agar tidak ada risk "ga terbaca". `tsc --noEmit` PASS.
+- **Terapkan ke:** `web-dom-general §4.1` (tambah blockquote aturan eksekusi + contoh
+  multi-gambar), `bridge-image-analyst §4a` (sequential multi-image = new chat CUKUP di
+  gambar pertama, 2..N re-open url sesi), `colab.md` PHASE 3 (image analysis: new chat
+  hanya gambar pertama, lanjutkan sesi). Berlaku text MAUPUN Vision, all vendor.
+- **Tidak diubah:** `prompt_image-to-markdown.md` field `Session_URL` (itu nama schema
+  metadata, bukan label rule — tetap). BAK/*.bak sengaja tidak disentuh.
+
+## [2026-07-18] Rule: subfolder source PRESERVED saat pull gambar (screenshots\dll\dst → screenshots/dll/dst/)
+
+- **BUG FIX (screenshots pull):** `fetch_screenshots.sh` LAMA menulis dest
+  `screenshots/TARGET\name.png` — backslash Windows jadi KARAKTER LITERAL di nama file,
+  dan struktur subfolder di-flatten. FIX: `write_one` ubah `\` → `/` pada nama, lalu
+  `mkdir -p "$(dirname "$out")"` → folder bersarang SUNGGUHAN. Metadata `local_path` +
+  `source_path` catat path LENGKAP berlapis; YAML sidecar tetap flat (basename) demi
+  kontrak 3-folder. Ter-VERIFY: `screenshot get "TARGET\variasi_split_transform_shape_dasar.png"`
+  → `docs/TEMP_IMAGES/screenshots/TARGET/variasi_split_transform_shape_dasar.png`
+  (dir beneran, BUKAN literal backslash; 702×153, 154722 byte).
+- **RULE (di-add ke `bridge-image-analyst` §1):** bila gambar Win11 ada di subfolder
+  (`C:\Users\ryoro\Pictures\Screenshots\TARGET\…`), simpan ke Linux DENGAN lapisan
+  subfolder SAMA (`screenshots/TARGET/…png`), JANGAN di-flatten. Win11 `screenshot-sync.ps1`
+  sudah subfolder-aware (`Assert-SafeChild`) → aman (masih di-whitelist Screenshots).
+  Kunci SSH `screenshot` read-only (scope ke `screenshot-sync.ps1`) — source Win11
+  tidak diubah/didelete. Table kontrak 3-folder di-update: `screenshots/` baris
+  ditambah catatan "subfolders preserved".
+
+## [2026-07-18] Reply-detection BESAR: STOP-button PRIMARY, "Monitor event" FALLBACK (text+vision, all vendor)
+
+- **KOREKSI MASTER (deteksi siap-balas):** metode "Monitor event" (poll perubahan
+  signature DOM) **LAMBAT** → jadikan **FALLBACK**. **PRIMARY** = poll tombol
+  **STOP/send** di composer via `waitStopGone(page, STOP_BUTTON, 90_000)` — langsung
+  baca state "generating" dari remote sendiri. Selector per-vendor:
+  - GPT = `button[data-testid="stop-button"]` (anchor stabil lintas-locale; aria-label
+    `Hentikan jawaban`/`Stop answering` ikut bahasa).
+  - Claude = `button[aria-label="Hentikan respons" i], button[aria-label="Stop response" i]`.
+  - Gemini = `[data-mat-icon-name="stop"], [fonticon="stop"]`.
+  - Z = `[aria-label="Stop"]`.
+- **Cek kesalahan pasca-settle:** setelah `waitStopGone` balik, `await sleep(5000)` lalu
+  snapshot balasan terakhir; bila `sig` SAMA persis dgn snapshot SEBELUM kirim (sebelumnya
+  tdk kosong) → `throw Error('DETEKSI ERROR …')` (chat baru tdk terkirim / AI blm selesai /
+  halaman ke-scroll ke atas). Normal: 1 chain < 10 detik.
+- **Helper bersama (tiap transport `_new`+`_continue`):** `lastReplySnapshot(page)` →
+  `{text, sig}` (sig = `head200|length`); `waitStopGone(page, stopSel, timeoutMs)` →
+  `true` bila STOP ada lalu hilang / tdk ada. `waitForStableReply` di-rewrite: STOP-primary
+  (return setelah `sleep(400)`) → `console.warn` fallback ke signature poll lama.
+  `lastNodeSignature` lama DIHAPUS (dead → noUnusedLocals).
+- **Terap di 8 file:** gpt/claude/gemini/z × `bridge-cdp-*_new.ts` + `*_continue.ts`.
+- **Skill di-update:** `web-dom-general §3` (ordering wajib: STOP-primary → Monitor-fallback,
+  + cek kesalahan 5s), per-vendor §3.1 STOP (claude §3.1 DITAMBAH — sebelumnya kosong),
+  ref `lastNodeSignature`→`lastReplySnapshot`/`waitStopGone`. `tsc --noEmit` PASS.

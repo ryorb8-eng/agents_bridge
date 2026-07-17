@@ -121,6 +121,36 @@ BRIDGE_CDP=http://host:18322 BRIDGE_CHAT_URL=https://claude.ai/chat/... npx tsx 
 
 ## 3. Scrape — Claude reply selector (`→ web-dom-general §4` for the order)
 
+### 3.1 Deteksi "Claude masih menjawab" — STOP button (`→ web-dom-general §3`)
+
+Untuk tahu apakah Claude **MASIH** generate, cek tombol **STOP** di composer. Selama
+tombol ini ada → Claude belum selesai. Tombol ini **LOCALE-AWARE** (`aria-label` ikut
+bahasa UI):
+
+- id → `aria-label="Hentikan respons"`
+- en → `aria-label="Stop response"`
+
+```html
+<!-- id -->
+<button aria-label="Hentikan respons" data-testid="stop-button" ...>…</button>
+
+<!-- en -->
+<button aria-label="Stop response" data-testid="stop-button" ...>…</button>
+```
+
+**Anchor stabil lintas-bahasa = `button[aria-label="Hentikan respons" i], button[aria-label="Stop response" i]`**
+(flag `i` = case-insensitive, cocok semua locale/case; teks `aria-label` berubah ikut
+locale — jangan hardcode satu bahasa). Aturan:
+
+- `document.querySelector('button[aria-label="Hentikan respons" i], button[aria-label="Stop response" i]')`
+  **ADA** → Claude masih menjawab → **JANGAN** capture, tunggu sampai tombol hilang.
+- Tombol **HILANG** → Claude selesai → aman capture (lalu verifikasi stabil via §3 poin 1:
+  node article terakhir tidak tumbuh antar poll).
+- Stop button eksplisit = state "generating" dari Claude sendiri → **lebih andal** dari
+  cek spinner/copy-button. **CATATAN:** `copy-button` (`action-bar-copy`/`Copy`) **TIDAK**
+  dipakai sebagai deteksi "masih menjawab" — jawaban SEBELUMNYA pun punya copy-button,
+  jadi bukan indikator generate. Copy-button hanya metode capture/fallback (§4), bukan deteksi.
+
 > **⚠️ LIVE 2026-07-17 — DOM DRIFT:** selector lama `div[data-testid="assistant-message"]`
 > (dan `[data-message-author-role="assistant"]`) **SUDAH MATI** di Claude Web live.
 > Tiap pesan (user + assistant per turn) sekarang dibungkus `div[role="article"]`.

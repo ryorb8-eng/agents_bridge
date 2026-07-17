@@ -69,6 +69,11 @@ const SEND_BUTTON =
 // Tunggu generasi selesai: copy button muncul di pesan terakhir = stabil.
 const COPY_BUTTON = 'button[data-testid="copy-turn-action-button"]';
 
+// Deteksi "GPT masih menjawab" = tombol STOP ada di composer (LOCALE-AWARE).
+// id -> aria-label="Hentikan jawaban", en -> "Stop answering". Anchor stabil
+// lintas-bahasa = data-testid="stop-button" (web-dom-chatgpt §3.1).
+const STOP_BUTTON = 'button[data-testid="stop-button"]';
+
 // Default: tutup page + browser lalu exit 0 (biar chain otomatis lanjut).
 // Set BRIDGE_KEEP_OPEN=1 untuk biarkan terbuka (inspeksi manual).
 const KEEP_OPEN = process.env.BRIDGE_KEEP_OPEN === '1';
@@ -192,7 +197,7 @@ async function logConversation(opts: {
 }
 
 /**
- * Capture URL sesi AWAL ke .log, tepat setelah pesan pertama dikirim.
+ * Capture url sesi AWAL ke .log, tepat setelah pesan pertama dikirim.
  *
  * PENTING: ChatGPT (dan semua vendor baru) mengubah URL homepage -> URL conversation
  * (/c/<uuid>) BEBERAPA DETIK setelah pesan pertama dikirim. URL itu HARUS tercatat
@@ -209,7 +214,7 @@ async function captureSessionUrl(page: Page, opts: {
   await sleep(SESSION_CAPTURE_DELAY_MS);
   const url = page.url();
   const id = extractConvId(url);
-  console.log(`[bridge] Capture URL sesi (${SESSION_CAPTURE_DELAY_MS}ms stlh kirim): ${url}`);
+  console.log(`[bridge] Capture url sesi (${SESSION_CAPTURE_DELAY_MS}ms stlh kirim): ${url}`);
   if (!id) {
     console.warn('[bridge] URL belum berubah jadi conversation (/c/<uuid>) — mungkin rate-limit / login wall. Cek .log nanti.');
   }
@@ -313,16 +318,6 @@ async function countAssistantReplies(page: Page): Promise<number> {
   return page.evaluate((sel) => document.querySelectorAll(sel).length, ASSISTANT_MSG);
 }
 
-/** Signature node terakhir (head + length) — untuk deteksi balasan baru. */
-async function lastNodeSignature(page: Page): Promise<string> {
-  return page.evaluate((sel) => {
-    const nodes = Array.from(document.querySelectorAll(sel));
-    if (nodes.length === 0) return '';
-    const last = nodes[nodes.length - 1] as HTMLElement;
-    return ((last.innerText || '').slice(0, 200)) + '|' + last.innerText.length;
-  }, ASSISTANT_MSG);
-}
-
 /**
  * Vision via LOCAL FILE attach (Ctrl+U) — LIVE-VERIFIED 2026-07-17 Profile 2.
  * Fokus composer, tekan Ctrl+U -> ChatGPT membuka native file-picker (event
@@ -385,10 +380,8 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
 
   const before = await countAssistantReplies(page);
   console.log(`[bridge] Balasan assistant sebelum kirim: ${before}`);
-  // Signature node terakhir SEBELUM kirim (buat deteksi balasan baru yang
-  // handal — ChatGPT bisa mengganti node terakhir, bukan nambah node baru,
-  // sehingga hitungan node tidak bisa diandalkan).
-  const beforeSig = await lastNodeSignature(page);
+  // Snapshot balasan SEBELUM kirim (untuk cek "sama dgn sebelum?" setelah 5s).
+  const beforeSnap = await lastReplySnapshot(page);
 
   // === PRIORITY: clipboard paste (Shift+Esc -> Ctrl+V -> Enter) ===
   let pasted = false;
@@ -426,7 +419,7 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
     console.log('[bridge] Menunggu generasi…');
   }
 
-  // === CAPTURE URL SESI AWAL (2s stlh pesan pertama) — SEBELUM refresh ===
+  // === CAPTURE url sesi AWAL (2s stlh pesan pertama) — SEBELUM refresh ===
   // Simpan URL homepage -> /c/<uuid> ke .log agar bisa di-reopen sbg pengganti F5.
   // Jangan tunggu sampai akhir run (akhir run URL sdh benar, tapi kita butuh CAPTURE
   // DINI sebelum ada refresh yg bisa kehilangan sesi).
@@ -435,6 +428,9 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
 
   // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
   // (Tidak pakai hitungan node — ChatGPT bisa mengganti node terakhir.)
+  // NOTE: deteksi "selesai" utama kini ada di waitForStableReply (STOP-button
+  // poll, web-dom-general §3 / web-dom-chatgpt §3.1). Signature poll di bawah
+  // hanya konfirmasi "ada balasan baru", bukan penentu selesai.
   const sigChanged = await page.waitForFunction(
     (sig) => {
       const nodes = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] .markdown'));
@@ -443,13 +439,26 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
       const cur = (last.innerText || '').slice(0, 200) + '|' + last.innerText.length;
       return cur !== sig;
     },
-    beforeSig,
+    beforeSnap.sig,
     { timeout: 150_000 },
   ).then(() => true).catch(() => { console.warn('[bridge] Timeout menunggu balasan baru — lanjut cek status.'); return false; });
   console.log(`[bridge] Balasan baru terdeteksi: ${sigChanged}`);
 
-  // Tunggu generasi sTABIL: copy button muncul + ukuran tidak tumbuh.
+  // Tunggu generasi sTABIL (PRIORITAS: STOP-button poll; FALLBACK: signature poll).
   await waitForStableReply(page);
+
+  // Snapshot SETELAH settle (~5s): bila SAMA persis dgn sebelum kirim → ada yg
+  // salah (chat baru tdk terkirim / AI blm selesai / halaman ke-scroll ke atas).
+  // Cek ini diagnostik — MASTER: 1 chain hrsnya lancar < 10 detik.
+  await sleep(5000); // settle: tunggu render final + pastikan tidak ada sisa streaming
+  const afterSnap = await lastReplySnapshot(page);
+  if (afterSnap.sig === beforeSnap.sig && beforeSnap.text.length > 0) {
+    throw new Error(
+      '[bridge] DETEKSI ERROR: balasan SETELAH 5s SAMA persis dgn SEBELUM kirim ' +
+      '(sig tidak berubah). Kemungkinan: chat baru tdk terkirim, AI belum selesai, ' +
+      'atau halaman ke-scroll ke atas. Periksa DOM/console.',
+    );
+  }
 
   // Baca balasan terakhir (sama dengan read mode).
   await readLastReply(page);
@@ -475,11 +484,47 @@ async function typeIntoComposer(page: Page, prompt: string): Promise<boolean> {
 }
 
 /**
- * Tunggu hingga balasan terakhir stabil (generasi selesai).
- * Deteksi: copy button muncul di pesan terakhir, dan outerHTML tidak tumbuh
- * antara 2 poll ~1.5s. Juga selesaikan scroll-to-bottom bila ada.
+ * Snapshot teks balasan terakhir (anchor AUTHORITATIVE = innerText node assistant
+ * terakhir). Dipakai untuk cek "sama dgn sebelum kirim?" setelah 5s settle.
+ */
+async function lastReplySnapshot(page: Page): Promise<{ text: string; sig: string }> {
+  const snap = await page.evaluate(({ containerSel, msgSel }: { containerSel: string; msgSel: string }) => {
+    const containers = Array.from(document.querySelectorAll(containerSel)) as HTMLElement[];
+    const lastContainer = containers[containers.length - 1];
+    const containerText = (lastContainer?.innerText || '').trim();
+    const nodes = Array.from(document.querySelectorAll(msgSel)) as HTMLElement[];
+    const last = nodes[nodes.length - 1];
+    const lastText = (last?.innerText || '').trim();
+    const text = containerText || lastText; // container lebih lengkap; fallback ke .markdown
+    return { text, sig: (text.slice(0, 200)) + '|' + text.length };
+  }, { containerSel: ASSISTANT_CONTAINER, msgSel: ASSISTANT_MSG });
+  return snap;
+}
+
+/**
+ * Tunggu hingga AI vendor SELESAI menjawab (generasi stabil).
+ *
+ * PRIORITAS 1 (cepat): poll tombol STOP di composer. Selama STOP ADA → masih
+ *   generate → tunggu. Begitu STOP HILANG → selesai. Ini DETEKSI LANGSUNG ke
+ *   state "generating" milik vendor sendiri (web-dom-general §3 / per-vendor §3.1).
+ * FALLBACK (lambat, "Monitor event" lama): bila selector STOP gagal terdeteksi
+ *   (DOM drift / locale tak dikenal), pakai signature node terakhir (head+len)
+ *   yang BERUBAH lalu STABIL 2 poll berturut-turut (copy button + ukuran tak tumbuh).
+ *
+ * Setelah ini, pemanggil melakukan snapshot 5s lalu cek sama/beda (lihat
+ * sendAndWaitForReply). Target: 1 chain selesai < 10 detik.
  */
 async function waitForStableReply(page: Page): Promise<void> {
+  // --- PRIORITAS 1: STOP-button poll ---
+  const stopGone = await waitStopGone(page, STOP_BUTTON, 90_000).catch(() => false);
+  if (stopGone) {
+    // Beri jeda kecil agar teks final benar-benar ter-render penuh.
+    await sleep(400);
+    return;
+  }
+  console.warn('[bridge] STOP-button tidak terdeteksi (mungkin drift/locale) — fallback ke Monitor event (signature poll).');
+
+  // --- FALLBACK: signature-change poll ("Monitor event" lama) ---
   const deadline = Date.now() + 120_000;
   let lastHtml = '';
   let stableCount = 0;
@@ -508,6 +553,35 @@ async function waitForStableReply(page: Page): Promise<void> {
     await sleep(1500);
   }
   console.warn('[bridge] Waktu tunggu stabil habis — membaca apa pun yang ada.');
+}
+
+/**
+ * Poll sampai tombol STOP (selector) HILANG dari DOM. Selama ada → masih generate.
+ * Return true bila STOP sempat terlihat lalu hilang, atau bila STOP memang tidak
+ * ada di awal (artinya selesai). Return false bila timeout (STOP tetap ada /
+ * tidak pernah muncul & tidak bisa dipastikan).
+ */
+async function waitStopGone(page: Page, stopSel: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let sawStop = false;
+  while (Date.now() < deadline) {
+    const stopExists = await page.evaluate((sel) => !!document.querySelector(sel), stopSel).catch(() => false);
+    if (stopExists) {
+      sawStop = true;
+      lastActivityTs = Date.now();
+    } else if (sawStop) {
+      return true; // STOP ada lalu hilang → selesai
+    }
+    if (!sawStop && !stopExists) {
+      // STOP belum pernah muncul. Mungkin AI sdh selesai sebelum kita poll (jawaban
+      // instan / cache). Tunggu sebentar lalu anggap selesai bila tetap tak ada.
+      await sleep(300);
+      const still = await page.evaluate((sel) => !!document.querySelector(sel), stopSel).catch(() => false);
+      if (!still) return true;
+    }
+    await sleep(700);
+  }
+  return false; // timeout → panggil fallback
 }
 
 /** Tangani tombol scroll-to-bottom (Ctrl+End x3, lalu klik x3, lalu lanjut). */

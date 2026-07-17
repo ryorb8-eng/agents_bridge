@@ -64,6 +64,10 @@ const COMPOSER = 'textarea#chat-input, textarea[aria-label*="message" i], div[co
 const SEND_BUTTON =
   'button[aria-label="Send Message"], button[aria-label="Send"], button[type="submit"], .sendMessageButton';
 
+// Deteksi "Z masih menjawab" = tombol STOP ada di composer.
+// LIVE: z.ai pakai aria-label="Stop".
+const STOP_BUTTON = '[aria-label="Stop"]';
+
 // Default: tutup page + browser lalu exit 0 (biar chain otomatis lanjut).
 // Set BRIDGE_KEEP_OPEN=1 untuk biarkan terbuka (inspeksi manual).
 const KEEP_OPEN = process.env.BRIDGE_KEEP_OPEN === '1';
@@ -208,15 +212,39 @@ async function countAssistantReplies(page: Page): Promise<number> {
   return page.evaluate(() => document.querySelectorAll('div[class*="message-"] .copy-response-button').length);
 }
 
-/** Signature node terakhir (head + length) — untuk deteksi balasan baru. */
-async function lastNodeSignature(page: Page): Promise<string> {
-  return page.evaluate(() => {
+/** Snapshot teks balasan terakhir (anchor AUTHORITATIVE = bubble message- terakhir ber-copy-button). */
+async function lastReplySnapshot(page: Page): Promise<{ text: string; sig: string }> {
+  const snap = await page.evaluate(() => {
     const bubbles = Array.from(document.querySelectorAll('div[class*="message-"]')) as HTMLElement[];
     const asst = bubbles.filter((b) => b.querySelector('.copy-response-button'));
-    if (asst.length === 0) return '';
+    if (asst.length === 0) return { text: '', sig: '' };
     const last = asst[asst.length - 1];
-    return ((last.innerText || '').slice(0, 200)) + '|' + last.innerText.length;
+    const text = (last.innerText || '').trim();
+    return { text, sig: (text.slice(0, 200)) + '|' + text.length };
   });
+  return snap;
+}
+
+/** Poll sampai tombol STOP (selector) HILANG. Return true bila STOP ada lalu hilang / tdk ada. */
+async function waitStopGone(page: Page, stopSel: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let sawStop = false;
+  while (Date.now() < deadline) {
+    const stopExists = await page.evaluate((sel) => !!document.querySelector(sel), stopSel).catch(() => false);
+    if (stopExists) {
+      sawStop = true;
+      lastActivityTs = Date.now();
+    } else if (sawStop) {
+      return true;
+    }
+    if (!sawStop && !stopExists) {
+      await sleep(300);
+      const still = await page.evaluate((sel) => !!document.querySelector(sel), stopSel).catch(() => false);
+      if (!still) return true;
+    }
+    await sleep(700);
+  }
+  return false;
 }
 
 /**
@@ -256,7 +284,7 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
 
   const before = await countAssistantReplies(page);
   console.log(`[bridge] Balasan assistant sebelum kirim: ${before}`);
-  const beforeSig = await lastNodeSignature(page);
+  const beforeSnap = await lastReplySnapshot(page);
 
   // === FOKUS COMPOSER: klik #chat-input (z.ai textarea asli) ===
   // z.ai TIDAK punya shortcut fokus (tidak ada "r"+Backspace). Composer adalah
@@ -303,13 +331,13 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
   };
   await sendOnce();
 
-  // === CAPTURE URL SESI — SETELAH pesan benar-benar terkirim ===
+  // === CAPTURE url sesi — SETELAH pesan benar-benar terkirim ===
   // (continue.ts = skeleton: log ringan ke stdout; _new.ts punya log .log penuh.)
   await sleep(Number(process.env.BRIDGE_SESSION_CAPTURE_DELAY_MS || 2000));
   console.log(`[bridge] Capture URL sesi (setelah kirim): ${page.url()}`);
 
-  // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
-  let sigChanged = await waitForNewReply(page, beforeSig);
+  // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSnap.sig.
+  let sigChanged = await waitForNewReply(page, beforeSnap.sig);
 
   // === RETRY KIRIM 1x (web-dom-general §8.2): bila composer MASIH berisi tapi belum
   // ada bubble baru = pesan "stuck" (Enter/click tidak ter-register, spt. laporan MASTER).
@@ -323,15 +351,26 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
       await typeIntoComposer(page, prompt);
       await assertComposerFilled(page);
       await sendOnce();
-      sigChanged = await waitForNewReply(page, beforeSig);
+      sigChanged = await waitForNewReply(page, beforeSnap.sig);
     } else {
       console.warn('[bridge] Belum ada bubble baru & composer kosong — lanjut cek status (mungkin rate-limit).');
     }
   }
   console.log(`[bridge] Balasan baru terdeteksi: ${sigChanged}`);
 
-  // Tunggu generasi sTABIL: copy button muncul + ukuran tidak tumbuh.
+  // Tunggu generasi sTABIL (PRIORITAS: STOP-button poll; FALLBACK: signature poll).
   await waitForStableReply(page);
+
+  // Snapshot SETELAH settle (~5s): bila SAMA persis dgn sebelum kirim → ada yg salah.
+  await sleep(5000);
+  const afterSnap = await lastReplySnapshot(page);
+  if (afterSnap.sig === beforeSnap.sig && beforeSnap.text.length > 0) {
+    throw new Error(
+      '[bridge] DETEKSI ERROR: balasan SETELAH 5s SAMA persis dgn SEBELUM kirim ' +
+      '(sig tidak berubah). Kemungkinan: chat baru tdk terkirim, AI belum selesai, ' +
+      'atau halaman ke-scroll ke atas. Periksa DOM/console.',
+    );
+  }
 
   // Baca balasan terakhir (sama dengan read mode).
   await readLastReply(page);
@@ -387,10 +426,21 @@ async function assertComposerFilled(page: Page): Promise<void> {
 
 /**
  * Tunggu hingga balasan terakhir stabil (generasi selesai).
- * Deteksi: copy button muncul di pesan terakhir, dan outerHTML tidak tumbuh
- * antara 2 poll ~1.5s.
+ * PRIORITAS: STOP-button poll (cegah tombol Stop z.ai masih ada).
+ * FALLBACK ("Monitor event" lama): signature-change poll — bubble assistant
+ * terakhir punya `.copy-response-button` (muncul saat generasi selesai), dan
+ * outerHTML tidak tumbuh 2 poll ~1.5s (bila STOP selector drift/locale).
  */
 async function waitForStableReply(page: Page): Promise<void> {
+  // --- PRIORITAS 1: STOP-button poll ---
+  const stopGone = await waitStopGone(page, STOP_BUTTON, 90_000).catch(() => false);
+  if (stopGone) {
+    await sleep(400); // jeda kecil agar teks final ter-render penuh
+    return;
+  }
+  console.warn('[bridge] STOP-button tidak terdeteksi (mungkin drift/locale) — fallback ke Monitor event (signature poll).');
+
+  // --- FALLBACK: signature-change poll ("Monitor event" lama) ---
   const deadline = Date.now() + 120_000;
   let lastHtml = '';
   let stableCount = 0;

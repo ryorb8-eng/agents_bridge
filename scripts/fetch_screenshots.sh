@@ -55,12 +55,20 @@ decode_stream() {
 
 write_one() {
   local name="$1" b64="$2"
-  local out="$SHOTS_DIR/$name"
+  # Preserve subfolder layers from the source. The Win11 side emits the name with
+  # Windows backslashes (e.g. "TARGET\variasi.png"); convert them to forward slashes
+  # so the relative path becomes a REAL nested folder locally, not a literal
+  # backslash in the filename (which is what flattened "screenshots/TARGET\name.png").
+  local rel="${name//\\//}"
+  local base
+  base="$(basename "$rel")"
+  local out="$SHOTS_DIR/$rel"
   # guard: if b64 empty, skip (avoid writing a 0-byte file)
   if [[ -z "$b64" ]]; then
     echo "  (skip empty block for '$name')"
     return
   fi
+  mkdir -p "$(dirname "$out")"
   printf '%s' "$b64" | base64 -d > "$out"
   local bytes mime mtime resolution
   bytes=$(stat -c%s "$out" 2>/dev/null || echo 0)
@@ -79,7 +87,9 @@ write_one() {
       resolution="${w}x${h}"
     fi
   fi
-  cat > "$META_DIR/${name%.*}.yaml" <<YAML
+  # metadata YAML stays flat (basename only) to honour the 3-folder matching
+  # contract, but local_path + source_path record the TRUE nested structure.
+  cat > "$META_DIR/${base%.*}.yaml" <<YAML
 image: "$name"
 source_host: "$SSH_HOST"
 source_path: "C:\\Users\\ryoro\\Pictures\\Screenshots\\$name"
@@ -87,7 +97,7 @@ fetched_at: "$mtime"
 bytes: $bytes
 mime: "$mime"
 resolution: "${resolution:-unknown}"
-local_path: "$SHOTS_DIR/$name"
+local_path: "$SHOTS_DIR/$rel"
 YAML
   echo "  saved $out ($bytes bytes, $mime${resolution:+, ${resolution}})"
 }

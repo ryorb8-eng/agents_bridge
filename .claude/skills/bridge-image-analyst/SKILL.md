@@ -74,6 +74,22 @@ edit/delete anything on Win11. (Deployment steps: `docs/TEMP_IMAGES/DEPLOY_scree
   local_path: "docs/TEMP_IMAGES/screenshots/Screenshot 2026-07-17 172739.png"
   ```
 
+### Subfolder structure is PRESERVED (screenshots\dll\dst\ → screenshots/dll/dst/)
+
+Bila gambar di Win11 berada di dalam **subfolder** (`C:\Users\ryoro\Pictures\Screenshots\TARGET\…`),
+maka simpan ke Linux **dengan lapisan subfolder yang SAMA** — jangan di-flatten:
+`docs/TEMP_IMAGES/screenshots/TARGET/….png` (bukan `screenshots/TARGET\name.png`
+dengan backslash jadi karakter literal di nama file).
+
+- `fetch_screenshots.sh` mengubah backslash Windows (`\`) → slash (`/`) pada nama, lalu
+  `mkdir -p` folder bersarangnya. Metadata (`image` / `source_path` / `local_path`)
+  mencatat path LENGKAP berlapis; hanya YAML sidecar yang flat (basename) demi kontrak
+  3-folder.
+- Contoh ter-verifikasi: `screenshot get "TARGET\variasi_split_transform_shape_dasar.png"`
+  → `docs/TEMP_IMAGES/screenshots/TARGET/variasi_split_transform_shape_dasar.png`
+  (702×153, 154722 byte) + `metadata/variasi_split_transform_shape_dasar.yaml`
+  (`local_path: …/screenshots/TARGET/variasi_split_transform_shape_dasar.png`).
+
 > Format choice: **YAML** (not JSON) — human-readable, diff-friendly in git, and the
 > bridge's other metadata (message-log, ADRs) is prose/markdown, so YAML fits the
 > workflow better than JSON brackets.
@@ -85,7 +101,7 @@ each with a strict role (same basename `<name>` across all three for trivial mat
 
 | Folder | Role | Written by | Content |
 |---|---|---|---|
-| `screenshots/` | RAW image bytes | `fetch_screenshots.sh` | the image file itself (`<name>.png`) |
+| `screenshots/` | RAW image bytes | `fetch_screenshots.sh` | the image file itself (`<name>.png`); **subfolders preserved** (`screenshots/dll/dst/<name>.png`) |
 | `metadata/` | OBJECTIVE facts | `fetch_screenshots.sh` (+ analysis-step enrichment) | `<name>.yaml` — size, mime, resolution, source, provenance |
 | `description/` | AI ANALYSIS output | this skill (§4) | `<name>.md` — the remote AI's structured v2.0 analysis |
 
@@ -206,15 +222,22 @@ sama):
 > disimpan lokal sebagai `analysis_overall_confidence`. Itu DATA (ADR-0004), bukan angka
 > otoritatif — dipakai HANYA untuk hindari panggilan Vision redundant, bukan sebagai fakta.
 
-### Sequential multi-image
+### Sequential multi-image (SATU sesi, lanjutkan, JANGAN new chat per gambar)
 Bila task menamakan beberapa gambar (atau "all Screenshots"), **proses SATU per SATU**:
 loop tiap gambar lewat §2 → §3 → §4 → §4a, tunggu tiap analisis selesai & tersimpan
 sebelum memulai yang berikutnya. JANGAN fan-out panggilan Vision paralel ke satu profil
 vendor — composer / session single-tenant, dan kirim paralel merusak capture (lihat
 `web-dom-general §4.1`).
 
+> **EKSEKUSI SESI (teguh):** gambar PERTAMA dari task analisis = satu-satunya yang
+> pakai **new chat** (`*_new.ts`, capture url sesi otomatis). Gambar ke-2..N **LANJUTKAN
+> sesi yang SAMA** — RE-OPEN `url sesi` dari `.log` (web-dom-general §4.1), JANGAN buka
+> new chat lagi dan JANGAN F5. Ini agar AI vendor mengakumulasi konteks antar gambar →
+> hasil konsisten (aturan new-chat di web-dom-general §4.1 berlaku untuk text MAUPUN
+> Vision, all vendor).
+
 > Saat Vision mengirim (URL maupun Ctrl+U local file), transport `*_new.ts` **otomatis
-> capture URL sesi sebelum refresh** (web-dom-general §4.1) — tidak perlu di-handle
+> capture url sesi sebelum refresh** (web-dom-general §4.1) — tidak perlu di-handle
 > manual di skill ini.
 
 ---

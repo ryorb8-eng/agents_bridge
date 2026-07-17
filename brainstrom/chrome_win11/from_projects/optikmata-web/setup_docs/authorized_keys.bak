@@ -1,0 +1,1 @@
+command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\bridge\chrome-debug-gate.ps1",restrict,from="192.168.1.3" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKLmvJTZ1y7u7x6jZxSUGA2IUvGz6bMK5HvhZ3fbCqCI

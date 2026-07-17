@@ -7,6 +7,14 @@ the dedicated key, the fetch script) is ALREADY built in the repo — only the W
 is manual, because the existing scoped SSH key is locked to the gatekeeper
 (`command="...chrome-debug-gate.ps1",restrict`) and CANNOT edit `authorized_keys` itself.
 
+> **Subfolders:** the scoped key stays `restrict`ed and only runs `screenshot-sync.ps1`
+> (it does NOT gate per-argument). Recursive listing was previously disabled *inside* the
+> script (`Get-ChildItem -File`, no `-Recurse`). The script in this repo has been updated
+> to walk subfolders — every resolved path is STILL confined to `Screenshots` by the
+> `Assert-SafeChild` / `Resolve-SafeRel` guard (a symlinked subfolder that escapes the
+> folder is skipped, never read). **`authorized_keys` needs NO change** — paste the
+> updated `screenshot-sync.ps1` and subfolder `list`/`get-all`/`list-sub` work.
+
 ---
 
 ## Step 1 — append this line to `C:\Users\ryoro\.ssh\authorized_keys`
@@ -48,18 +56,24 @@ Usage the Linux side calls:
 
 | action | what it returns |
 |---|---|
-| `ssh screenshot list` | newline-separated filenames in the Screenshots dir |
-| `ssh screenshot get <filename>` | **Base64** of that one file on stdout (Linux decodes it) |
-| `ssh screenshot get-all` | Base64 of every file, separated by a sentinel line `::FILE:: <name>` |
+| `ssh screenshot list` | newline-separated filenames under Screenshots (**recursive** — nested paths like `TARGET\foo.png`) |
+| `ssh screenshot list-sub <sub>` | filenames inside ONE subfolder (e.g. `ssh screenshot list-sub TARGET`) |
+| `ssh screenshot get <filename>` | **Base64** of that one file on stdout (name may include a subfolder, e.g. `TARGET\foo.png`); Linux decodes it |
+| `ssh screenshot get-all` | Base64 of every file (**recursive**, nested paths preserved), separated by a sentinel line `::FILE:: <name>` |
 | `ssh screenshot help` | usage |
+
+> Nested files are emitted with their relative path from `Screenshots` (e.g.
+> `TARGET\foo.png`); the Linux side converts `\`→`/` and writes a REAL nested
+> folder, preserving the subfolder layers. Read-only: no write/delete on Win11.
 
 ---
 
 ## Step 3 — verify (from Linux)
 
 ```bash
-ssh screenshot list            # should list your PNGs
-ssh screenshot get "Screenshot 2026-07-17 172739.png" | base64 -d > /tmp/test.png
+ssh screenshot list            # now lists ALL PNGs, including subfolders
+ssh screenshot list-sub TARGET # list just TARGET\
+ssh screenshot get "TARGET\foo.png" | base64 -d > /tmp/test.png
 file /tmp/test.png             # PNG image data
 ```
 

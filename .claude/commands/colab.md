@@ -86,10 +86,13 @@ Dispatch **satu** `bridge-operator` yang:
   `_continue.ts` di homepage) lalu perlu refresh, maka refresh membuka chat BARU →
   sesi + jejak hilang → chain LOOP tanpa pernah dapat balasan. Rule ini auto-trigger
   di dalam `sendAndWaitForReply` (`*_new.ts`), jadi cukup jalankan transport yang benar.
-- **Image analysis New Chat (all vendor):** rule §4.1 **sama berlakunya** untuk analisa
-  gambar — baik kirim URL RAW maupun file lokal Ctrl+U, transport `*_new.ts` men-capture
-  URL sesi secara otomatis. Multi-image diproses **sequential** per gambar
-  (`bridge-image-analyst §4a`); jangan fan-out paralel ke satu profil vendor.
+- **Image analysis (all vendor):** rule §4.1 **sama berlakunya** untuk analisa gambar —
+  baik kirim URL RAW maupun file lokal Ctrl+U, transport `*_new.ts` men-capture url sesi
+  secara otomatis. Multi-image diproses **sequential** per gambar (`bridge-image-analyst §4a`),
+  jangan fan-out paralel ke satu profil vendor. **New chat HANYA untuk gambar PERTAMA**
+  dari satu task; gambar 2..N **lanjutkan sesi yang SAMA** (re-open url sesi dari `.log`),
+  JANGAN new chat lagi / JANGAN F5 — agar vendor akumulasi pemahaman → hasil konsisten
+  (aturan web-dom-general §4.1 berlaku text MAUPUN Vision, all vendor).
 - **APPEND verbatim** ke `RESULT_DIR/temp_answers.md`:
   ```
   ## C<N> — <judul dari TOPIC_FILE>

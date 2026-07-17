@@ -1,0 +1,49 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e3]:
+    - banner [ref=f4e4]:
+      - button "Bantuan" [ref=f4e5]:
+        - img [ref=f4e6]
+      - link "Tutup" [ref=f4e9] [cursor=pointer]:
+        - /url: /
+        - img [ref=f4e10]
+    - main [ref=f4e13]:
+      - heading "Masuk ke Optik Mata" [level=1] [ref=f4e14]
+      - generic [ref=f4e15]:
+        - generic [ref=f4e16]:
+          - generic [ref=f4e17]: Masuk dengan email Anda
+          - textbox "Masuk dengan email Anda" [ref=f4e18]:
+            - /placeholder: Alamat email
+            - text: ryora3@gmail.com
+        - generic [ref=f4e19]:
+          - generic [ref=f4e20]: Kata sandi
+          - generic [ref=f4e21]:
+            - textbox "Kata sandi" [ref=f4e22]: optikmataadminhijau3
+            - generic [ref=f4e23]:
+              - button "Hapus kata sandi" [ref=f4e58]:
+                - img [ref=f4e59]
+              - button "Tampilkan kata sandi" [ref=f4e24]:
+                - img [ref=f4e25]
+          - link "Lupa Kata Sandi?" [ref=f4e29] [cursor=pointer]:
+            - /url: /forgot-password
+        - button "Masuk" [ref=f4e30]
+        - paragraph [ref=f4e62]: Berhasil masuk. Mengalihkan…
+      - generic [ref=f4e31]:
+        - generic [ref=f4e34]: atau
+        - generic [ref=f4e36]:
+          - button "Gunakan Magic Link Email" [ref=f4e37]:
+            - img [ref=f4e38]
+            - generic [ref=f4e40]: Gunakan Magic Link Email
+          - button "Lanjutkan dengan Facebook Segera hadir" [disabled] [ref=f4e41]:
+            - img [ref=f4e42]
+            - generic [ref=f4e44]: Lanjutkan dengan Facebook
+            - generic [ref=f4e45]: Segera hadir
+          - button "Lanjutkan dengan Google Segera hadir" [disabled] [ref=f4e46]:
+            - img [ref=f4e47]
+            - generic [ref=f4e52]: Lanjutkan dengan Google
+            - generic [ref=f4e53]: Segera hadir
+    - contentinfo [ref=f4e54]:
+      - paragraph [ref=f4e55]:
+        - text: Belum memiliki akun?
+        - link "Daftar" [ref=f4e56] [cursor=pointer]:
+          - /url: /register
+  - alert [ref=f4e57]

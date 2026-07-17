@@ -1,0 +1,30 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - complementary [ref=f5e3]:
+      - generic [ref=f5e5]:
+        - generic [ref=f5e6]: 👑
+        - generic [ref=f5e7]:
+          - generic [ref=f5e8]: Admin Panel
+          - generic [ref=f5e9]: admin
+      - navigation [ref=f5e10]:
+        - link "📊 Dashboard" [ref=f5e12] [cursor=pointer]:
+          - /url: /dashboard/sultan/admin
+          - generic [ref=f5e13]: 📊
+          - generic [ref=f5e14]: Dashboard
+        - link "📈 Economic Report" [ref=f5e16] [cursor=pointer]:
+          - /url: /dashboard/sultan/admin/economic-report
+          - generic [ref=f5e17]: 📈
+          - generic [ref=f5e18]: Economic Report
+      - generic [ref=f5e19]:
+        - link "Kembali" [ref=f5e20] [cursor=pointer]:
+          - /url: /
+          - img [ref=f5e21]
+          - generic [ref=f5e23]: Kembali ke Dashboard Admin
+        - generic [ref=f5e24]: ryora3@gmail.com
+    - generic [ref=f5e25]:
+      - banner [ref=f5e26]:
+        - button [ref=f5e27]:
+          - img [ref=f5e28]
+        - generic [ref=f5e30]: Admin Panel
+      - main [ref=f5e31]
+  - alert [ref=f5e34]

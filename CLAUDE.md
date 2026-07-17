@@ -86,6 +86,9 @@ MUST honor them automatically:
   `protocols/delta_context_protocol.md` (DCP),
   `docs/prompts/bridge_ai_handshake.md` (ABHP). Engine picks the vendor from the registry
   by availability/score/fit — it does NOT hardcode a vendor.
+  Operator CLI: `/colab <vendor> [profil N] [new|continue] tentang <collabs_topic/N.md>`
+  (CWD `.claude/commands/colab.md`) — applies the capability to the Optikmata
+  `colab_topics/` structure (resolves `collabs_topic/→collabs_results/`).
 - **Global SOP router** — `/home/s/.claude/GLOBAL.md` (map of every global SOP, the
   Global↔CWD boundary). CEP/DCP/ABHP are CWD-specific; they are *linked* here, not
   duplicated in global CLAUDE.md.

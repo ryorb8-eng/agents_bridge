@@ -60,6 +60,11 @@ const SEND_BUTTON =
 // Tunggu generasi selesai: copy button muncul di pesan terakhir = stabil.
 const COPY_BUTTON = 'button[data-testid="copy-turn-action-button"]';
 
+// Deteksi "GPT masih menjawab" = tombol STOP ada di composer (LOCALE-AWARE).
+// id -> aria-label="Hentikan jawaban", en -> "Stop answering". Anchor stabil
+// lintas-bahasa = data-testid="stop-button" (web-dom-chatgpt §3.1).
+const STOP_BUTTON = 'button[data-testid="stop-button"]';
+
 // Default: tutup page + browser lalu exit 0 (biar chain otomatis lanjut).
 // Set BRIDGE_KEEP_OPEN=1 untuk biarkan terbuka (inspeksi manual).
 const KEEP_OPEN = process.env.BRIDGE_KEEP_OPEN === '1';
@@ -203,14 +208,41 @@ async function countAssistantReplies(page: Page): Promise<number> {
   return page.evaluate((sel) => document.querySelectorAll(sel).length, ASSISTANT_MSG);
 }
 
-/** Signature node terakhir (head + length) — untuk deteksi balasan baru. */
-async function lastNodeSignature(page: Page): Promise<string> {
-  return page.evaluate((sel) => {
-    const nodes = Array.from(document.querySelectorAll(sel));
-    if (nodes.length === 0) return '';
-    const last = nodes[nodes.length - 1] as HTMLElement;
-    return ((last.innerText || '').slice(0, 200)) + '|' + last.innerText.length;
-  }, ASSISTANT_MSG);
+/** Snapshot teks balasan terakhir (anchor AUTHORITATIVE = innerText node assistant terakhir). */
+async function lastReplySnapshot(page: Page): Promise<{ text: string; sig: string }> {
+  const snap = await page.evaluate(({ containerSel, msgSel }: { containerSel: string; msgSel: string }) => {
+    const containers = Array.from(document.querySelectorAll(containerSel)) as HTMLElement[];
+    const lastContainer = containers[containers.length - 1];
+    const containerText = (lastContainer?.innerText || '').trim();
+    const nodes = Array.from(document.querySelectorAll(msgSel)) as HTMLElement[];
+    const last = nodes[nodes.length - 1];
+    const lastText = (last?.innerText || '').trim();
+    const text = containerText || lastText;
+    return { text, sig: (text.slice(0, 200)) + '|' + text.length };
+  }, { containerSel: ASSISTANT_CONTAINER, msgSel: ASSISTANT_MSG });
+  return snap;
+}
+
+/** Poll sampai tombol STOP (selector) HILANG. Return true bila STOP ada lalu hilang / tdk ada. */
+async function waitStopGone(page: Page, stopSel: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let sawStop = false;
+  while (Date.now() < deadline) {
+    const stopExists = await page.evaluate((sel) => !!document.querySelector(sel), stopSel).catch(() => false);
+    if (stopExists) {
+      sawStop = true;
+      lastActivityTs = Date.now();
+    } else if (sawStop) {
+      return true;
+    }
+    if (!sawStop && !stopExists) {
+      await sleep(300);
+      const still = await page.evaluate((sel) => !!document.querySelector(sel), stopSel).catch(() => false);
+      if (!still) return true;
+    }
+    await sleep(700);
+  }
+  return false;
 }
 
 /**
@@ -230,10 +262,8 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
 
   const before = await countAssistantReplies(page);
   console.log(`[bridge] Balasan assistant sebelum kirim: ${before}`);
-  // Signature node terakhir SEBELUM kirim (buat deteksi balasan baru yang
-  // handal — ChatGPT bisa mengganti node terakhir, bukan nambah node baru,
-  // sehingga hitungan node tidak bisa diandalkan).
-  const beforeSig = await lastNodeSignature(page);
+  // Snapshot balasan SEBELUM kirim (untuk cek "sama dgn sebelum?" setelah 5s).
+  const beforeSnap = await lastReplySnapshot(page);
 
   // === PRIORITY: clipboard paste (Shift+Esc -> Ctrl+V -> Enter) ===
   let pasted = false;
@@ -271,8 +301,8 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
     console.log('[bridge] Menunggu generasi…');
   }
 
-  // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSig.
-  // (Tidak pakai hitungan node — ChatGPT bisa mengganti node terakhir.)
+  // Tunggu balasan baru: signature node terakhir BERUBAH dari beforeSnap.sig.
+  // (Deteksi "selesai" utama kini di waitForStableReply — STOP-button poll.)
   const sigChanged = await page.waitForFunction(
     (sig) => {
       const nodes = Array.from(document.querySelectorAll('div[data-message-author-role="assistant"] .markdown'));
@@ -281,13 +311,24 @@ async function sendAndWaitForReply(page: Page, prompt: string): Promise<void> {
       const cur = (last.innerText || '').slice(0, 200) + '|' + last.innerText.length;
       return cur !== sig;
     },
-    beforeSig,
+    beforeSnap.sig,
     { timeout: 150_000 },
   ).then(() => true).catch(() => { console.warn('[bridge] Timeout menunggu balasan baru — lanjut cek status.'); return false; });
   console.log(`[bridge] Balasan baru terdeteksi: ${sigChanged}`);
 
-  // Tunggu generasi sTABIL: copy button muncul + ukuran tidak tumbuh.
+  // Tunggu generasi sTABIL (PRIORITAS: STOP-button poll; FALLBACK: signature poll).
   await waitForStableReply(page);
+
+  // Snapshot SETELAH settle (~5s): bila SAMA persis dgn sebelum kirim → ada yg salah.
+  await sleep(5000);
+  const afterSnap = await lastReplySnapshot(page);
+  if (afterSnap.sig === beforeSnap.sig && beforeSnap.text.length > 0) {
+    throw new Error(
+      '[bridge] DETEKSI ERROR: balasan SETELAH 5s SAMA persis dgn SEBELUM kirim ' +
+      '(sig tidak berubah). Kemungkinan: chat baru tdk terkirim, AI belum selesai, ' +
+      'atau halaman ke-scroll ke atas. Periksa DOM/console.',
+    );
+  }
 
   // Baca balasan terakhir (sama dengan read mode).
   await readLastReply(page);
@@ -318,6 +359,15 @@ async function typeIntoComposer(page: Page, prompt: string): Promise<boolean> {
  * antara 2 poll ~1.5s. Juga selesaikan scroll-to-bottom bila ada.
  */
 async function waitForStableReply(page: Page): Promise<void> {
+  // --- PRIORITAS 1: STOP-button poll ---
+  const stopGone = await waitStopGone(page, STOP_BUTTON, 90_000).catch(() => false);
+  if (stopGone) {
+    await sleep(400); // jeda kecil agar teks final ter-render penuh
+    return;
+  }
+  console.warn('[bridge] STOP-button tidak terdeteksi (mungkin drift/locale) — fallback ke Monitor event (signature poll).');
+
+  // --- FALLBACK: signature-change poll ("Monitor event" lama) ---
   const deadline = Date.now() + 120_000;
   let lastHtml = '';
   let stableCount = 0;

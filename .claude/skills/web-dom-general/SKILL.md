@@ -63,17 +63,31 @@ single file.
 
 ## 3. Wait for generation (do NOT read partial replies)
 
-After send, poll the page until the remote finishes. Detect "still generating" by:
+After send, poll the page until the remote finishes. **Ordering (wajib):**
 
-- **PRIMARY — per-vendor "stop/generating" button.** Setiap remote punya tombol eksplisit
-  yang ADA saat masih generate, HILANG saat selesai (ChatGPT: `button[data-testid="stop-button"]`,
-  → `web-dom-chatgpt §3.1`). Ini paling andal karena state "generating" dari remote sendiri.
-- a spinner / typing indicator in the **last** assistant message,
-- the last assistant message node growing in size between polls.
+1. **PRIMARY — per-vendor "stop/generating" button poll.** Setiap remote punya tombol
+   eksplisit yang ADA saat masih generate, HILANG saat selesai — cek ada/lalu-hilang-nya
+   via `waitStopGone` (selector per-vendor di bawah). Ini paling andal karena membaca
+   state "generating" dari remote SENDIRI, BUKAN menebak dari perubahan DOM.
+   - ChatGPT: `[aria-label="Hentikan jawaban"], [aria-label="Stop answering"]`
+   - Claude: `[aria-label="Hentikan respons" i], [aria-label="Stop response" i]`
+   - Gemini: `[data-mat-icon-name="stop"], [fonticon="stop"]`
+   - Z (chat.z.ai): `[aria-label="Stop"]`
+   (Selector lengkap per-remote: lihat `web-dom-<remote> §3.1`.)
+2. **FALLBACK — "Monitor event" (signature-change poll) HANYA bila step 1 gagal/drift.**
+   Bila STOP-button tidak terdeteksi (selector drift / locale), baru pakai poll perubahan
+   signature node terakhir + copy-button stabil 2× poll ~1.5s. Monitor event LAMBAT —
+   jangan jadikan PRIMARY.
 
 **JANGAN** pakai `copy-button` sebagai deteksi "masih menjawab" — jawaban SEBELUMNYA pun
 sudah punya copy-button, jadi bukan indikator generate. Copy-button hanya metode
 capture/fallback (§4), bukan sinyal selesai.
+
+**Cek kesalahan pasca-settle (wajib):** setelah `waitStopGone` balik (STOP hilang),
+`await sleep(5000)`, lalu snapshot balasan terakhir. Bila signature-NYA **SAMA persis**
+dengan snapshot SEBELUM kirim (dan sebelum-nya tidak kosong) → **throw Error DETEKSI
+ERROR** (chat baru tidak terkirim / AI belum selesai / halaman ke-scroll ke atas).
+Normalnya: 1 chain selesai < 10 detik.
 
 Only capture the reply once it is **stable** (stop button GONE + node terakhir tidak
 tumbuh antar poll ~2× berturut-turut, ~1.5s apart). Never extract a partial reply.
@@ -107,32 +121,41 @@ do NOT scrape raw source code (too complex / brittle).
 The per-remote reply selector (last assistant message) is documented in
 `web-dom-<remote>` §Scrape — not duplicated here.
 
-### 4.1 CAPTURE URL SESI SEBELUM REFRESH (wajib di `*_new.ts`, TERMASUK Vision)
+### 4.1 CAPTURE url sesi SEBELUM REFRESH (wajib di `*_new.ts`, TERMASUK Vision)
 
 Setiap transport `*_new.ts` (chat baru: ChatGPT / Claude / Z / Gemini) HARUS
-mencatat URL sesi ke `web-bridge-<remote>.log` **tepat 2 detik SETELAH pesan
+mencatat url sesi ke `web-bridge-<remote>.log` **tepat 2 detik SETELAH pesan
 PERTAMA dikirim** — SEBELUM ada refresh (F5).
+
+> **ATURAN EKSEKUSI NEW CHAT (text MAUPUN Vision, ALL vendor):**
+> `new chat` (`*_new.ts`) HANYA dipakai **SAAT MEMULAI SESI**. Setelah itu — baik
+> untuk round ke-2, maupun untuk gambar ke-2..N dalam task multi-gambar — **JANGAN**
+> buka new chat lagi dan **JANGAN** pakai F5/refresh. Gunakan **url sesi** yang sudah
+> tercatat di `.log`: **re-open URL itu kembali** untuk lanjutkan sesi yang SAMA.
+> Tujuannya: AI vendor mengakumulasi pemahaman antar turn/gambar → hasil lebih
+> konsisten. Refresh di homepage justru membuka chat BARU → sesi + jejak hilang →
+> chain LOOP tanpa pernah dapat balasan.
 
 - Vendor ubah URL homepage → URL conversation (`/c/<uuid>`, `/chat/<uuid>`,
   `/app/<uuid>`) BEBERAPA DETIK setelah pesan pertama. URL itu = satu-satunya
-  jejak sesi.
-- Bila nanti perlu refresh, **BUKA URL itu kembali** sebagai pengganti F5. Refresh
-  di homepage justru membuka chat BARU → sesi + jejak hilang → chain LOOP tanpa
-  pernah dapat balasan.
-- **Berlaku JUGA untuk analisa gambar (Vision New Chat):** baik kirim URL RAW
+  jejak sesi (url sesi).
+- Bila nanti perlu refresh (atau lanjut ke gambar/turn berikutnya), **BUKA url sesi
+  itu kembali** sebagai pengganti F5 / new chat.
+- **Berlaku JUGA untuk analisa gambar (Vision):** baik kirim URL RAW
   (`bridge-image-publish`) maupun file lokal via Ctrl+U (`web-dom-chatgpt §5.1`),
-  transport menggunakan `*_new.ts` yang sama → capture URL sesi otomatis jalan
-  (jangan di-handle manual di `bridge-image-analyst`). Ini wajib agar multi-image
-  sequential (bridge-image-analyst §4a) tidak kehilangan jejak sesi antar gambar.
+  transport menggunakan `*_new.ts` yang sama → capture url sesi otomatis jalan
+  (jangan di-handle manual di `bridge-image-analyst`). New chat = **hanya gambar
+  PERTAMA** dari satu task analisis; gambar 2..N **lanjutkan sesi yang SAMA** (re-open
+  url sesi) agar vendor punya konteks kumulatif (bridge-image-analyst §4a).
 - **Auto-trigger:** rule ini TERIKAT ke `*_new.ts`, bukan ke command mana pun. Jadi
   apa pun yang menjalankan `*_new.ts` — termasuk `/colab <vendor> new chat` dan
-  Colab image-analysis New Chat — SUDAH men-trigger capture ini di dalam
+  Colab image-analysis — SUDAH men-trigger capture ini di dalam
   `sendAndWaitForReply` (SEBELUM waitForStableReply). Tidak perlu dipanggil manual.
 - Implementasi: helper `captureSessionUrl(page, {profile, promptChars})` yang
   `sleep(SESSION_CAPTURE_DELAY_MS=2000)` lalu `logConversation(...)` (mode `send`).
   Delay override via `BRIDGE_SESSION_CAPTURE_DELAY_MS`. Dipanggil di
   `sendAndWaitForReply` SETELAH send, SEBELUM menunggu balasan stabil.
-- `.log` baris ini punya `url` + `convId` → agent/subagent baca untuk reopen.
+- `.log` baris ini punya `url` + `convId` → agent/subagent baca untuk re-open.
 - Status lintas-vendor: **SUDAH ada** di ke-4 transport (`gpt` / `claude` / `gemini`
   / `z` bridge-cdp-*_new.ts) — definisi + pemanggilan di send-path + delay 2s. Tidak
   perlu di-port lagi; cukup rujuk §4.1 ini.
@@ -190,7 +213,7 @@ over `class` (classes may be build-hashed and rotate).
 **Kondisi pemicu (terikat):** saat transport (`_new.ts` / `_continue.ts`) gagal baca
 balasan karena selector TIDAK MATCH lagi — konkretnya salah satu dari:
 `readLastReply` `waitForSelector(<replySelector>)` timeout, ATAU throw
-`*.markdown tidak ditemukan`, ATAU `lastNodeSignature` / copy-button tidak pernah
+`*.markdown tidak ditemukan`, ATAU `waitStopGone` / copy-button tidak pernah
 muncul padahal remote AI SUDAH selesai generate (cek via `web-bridge-<remote>.log`
 field `error`).
 
@@ -203,7 +226,7 @@ Begitu kondisi di atas terpenuhi, MAKA **wajib** jalankan urutan self-heal berik
 2. **Update `web-dom-<remote>` §Scrape** dengan selector bubble baru + contoh markup
    + tanggal observasi. Bila selector berlaku ke SEMUA remote, edit `web-dom-general`
    §4 ini; bila vendor-spesifik, edit `web-dom-<remote>`.
-3. **Update `readLastReply`** (dan `waitForStableReply` / `lastNodeSignature` bila
+3. **Update `readLastReply`** (dan `waitForStableReply` / `lastReplySnapshot` bila
    pakai selector sama) di transport `_new.ts` **DAN** `_continue.ts` agar pakai
    selector baru. Jangan hanya benerin satu transport.
 4. **Re-run transport** sampai capture SUKSES (stabil + `replyChars > 0`). Jangan

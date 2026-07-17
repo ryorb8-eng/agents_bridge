@@ -1,0 +1,70 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - iframe [ref=e5]:
+      - banner [ref=f2e2]:
+        - generic [ref=f2e3]:
+          - generic [ref=f2e5]:
+            - heading [level=1]
+          - generic [ref=f2e6]:
+            - generic [ref=f2e8]:
+              - link "Gmail" [ref=f2e10] [cursor=pointer]:
+                - /url: https://mail.google.com/mail/?tab=rm&ogbl
+              - link "Telusuri Gambar" [ref=f2e12] [cursor=pointer]:
+                - /url: https://www.google.com/imghp?hl=id&tab=ri&ogbl
+                - text: Gambar
+            - generic [ref=f2e13]:
+              - button "Aplikasi Google" [ref=f2e17] [cursor=pointer]:
+                - img [ref=f2e18]
+              - 'button "Akun Google: Ryo Re (ryore3@gmail.com)" [ref=f2e23] [cursor=pointer]':
+                - img [ref=f2e25]
+    - generic [ref=e16]:
+      - button "Tingkatkan penelusuran Anda dengan tab, file, atau alat AI" [ref=e24] [cursor=pointer]
+      - combobox "Tanya Google" [ref=e25]
+      - generic:
+        - button "Telusuri dengan suara" [ref=e27] [cursor=pointer]
+        - button "Telusuri pakai gambar" [ref=e29] [cursor=pointer]
+      - button "Mode AI" [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+        - generic [ref=e34]:
+          - generic: Mode AI
+    - generic [ref=e36]:
+      - generic "ChatGPT" [ref=e37] [cursor=pointer]:
+        - link "ChatGPT" [ref=e38]:
+          - /url: https://chatgpt.com/
+        - button "Tindakan lainnya untuk pintasan ChatGPT" [ref=e39]
+        - generic [ref=e42]: ChatGPT
+      - generic "Peran AI Agents Answering" [ref=e43] [cursor=pointer]:
+        - link "Peran AI Agents Answering" [ref=e44]:
+          - /url: https://chatgpt.com/c/6a578f51-b1d4-83ec-b9c9-0afc00e55680
+        - button "Tindakan lainnya untuk pintasan Peran AI Agents Answering" [ref=e45]
+        - generic [ref=e48]: Peran AI Agents Answering
+      - generic "Z.ai" [ref=e49] [cursor=pointer]:
+        - link "Z.ai" [ref=e50]:
+          - /url: https://chat.z.ai/
+        - button "Tindakan lainnya untuk pintasan Z.ai" [ref=e51]
+        - generic [ref=e54]: Z.ai
+      - generic "New chat" [ref=e55] [cursor=pointer]:
+        - link "New chat" [ref=e56]:
+          - /url: https://claude.ai/new
+        - button "Tindakan lainnya untuk pintasan New chat" [ref=e57]
+        - generic [ref=e60]: New chat
+      - generic "AI Agent Role Defined" [ref=e61] [cursor=pointer]:
+        - link "AI Agent Role Defined" [ref=e62]:
+          - /url: https://chatgpt.com/c/6a591510-ccf0-83ec-97dd-762c7f459e7e
+        - button "Tindakan lainnya untuk pintasan AI Agent Role Defined" [ref=e63]
+        - generic [ref=e66]: AI Agent Role Defined
+      - generic "Z.ai" [ref=e67] [cursor=pointer]:
+        - link "Z.ai" [ref=e68]:
+          - /url: https://z.ai/
+        - button "Tindakan lainnya untuk pintasan Z.ai" [ref=e69]
+        - generic [ref=e72]: Z.ai
+      - button "Tampilkan lebih banyak" [ref=e74] [cursor=pointer]:
+        - generic [ref=e79]: Tampilkan lebih banyak
+      - generic:
+        - generic: Batal
+        - generic: Selesai
+    - button "Sesuaikan Chrome" [ref=e82] [cursor=pointer]:
+      - generic [ref=e83]:
+        - img
+      - generic [ref=e85]: Sesuaikan Chrome
+  - img [ref=e87]
