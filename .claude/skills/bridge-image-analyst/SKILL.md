@@ -185,6 +185,38 @@ YAML
 > = raw bytes, `metadata/` = objective facts, `description/` = AI interpretation
 > (§1). Keep them separate.
 
+## 4a. Image-analysis rules (dedup + sequential — ALL vendors)
+
+Berlaku untuk SEMUA vendor yang `bridge-collab` pilih (GPT / Claude / Z / Gemini) —
+tidak hardcode vendor.
+
+### Per-image dedup & re-process gate
+SEBELUM menghabiskan satu panggilan Vision pada sebuah gambar, cek rekamannya (basename
+sama):
+- **Tidak ada `description/<name>.md`** (belum pernah dianalisis) → **PROCESS** (baru).
+- **Ada `description/<name>.md` DAN `metadata/<name>.yaml` punya
+  `analysis_overall_confidence` ≥ 0.95** → **SKIP** (sudah confident; jangan bakar
+  kuota Vision vendor).
+- **Ada rekaman TAPI `analysis_overall_confidence` < 0.95** (atau body self-report
+  `Confidence: LOW`) → **RE-PROCESS** (regenerasi analisis).
+- Bila re-process tetap < 0.95 / `Confidence: LOW`, **surfacing ke MASTER** (CDE:
+  manusia adalah rung eskalasi terakhir) — jangan loop selamanya.
+
+> Skor "confident" = `Overall_Confidence` yang di-self-report remote AI (protocol §1-B),
+> disimpan lokal sebagai `analysis_overall_confidence`. Itu DATA (ADR-0004), bukan angka
+> otoritatif — dipakai HANYA untuk hindari panggilan Vision redundant, bukan sebagai fakta.
+
+### Sequential multi-image
+Bila task menamakan beberapa gambar (atau "all Screenshots"), **proses SATU per SATU**:
+loop tiap gambar lewat §2 → §3 → §4 → §4a, tunggu tiap analisis selesai & tersimpan
+sebelum memulai yang berikutnya. JANGAN fan-out panggilan Vision paralel ke satu profil
+vendor — composer / session single-tenant, dan kirim paralel merusak capture (lihat
+`web-dom-general §4.1`).
+
+> Saat Vision mengirim (URL maupun Ctrl+U local file), transport `*_new.ts` **otomatis
+> capture URL sesi sebelum refresh** (web-dom-general §4.1) — tidak perlu di-handle
+> manual di skill ini.
+
 ---
 
 ## 5. Report back

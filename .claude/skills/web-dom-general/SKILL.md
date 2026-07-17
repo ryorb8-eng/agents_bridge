@@ -107,7 +107,7 @@ do NOT scrape raw source code (too complex / brittle).
 The per-remote reply selector (last assistant message) is documented in
 `web-dom-<remote>` §Scrape — not duplicated here.
 
-### 4.1 CAPTURE URL SESI SEBELUM REFRESH (wajib di `*_new.ts`)
+### 4.1 CAPTURE URL SESI SEBELUM REFRESH (wajib di `*_new.ts`, TERMASUK Vision)
 
 Setiap transport `*_new.ts` (chat baru: ChatGPT / Claude / Z / Gemini) HARUS
 mencatat URL sesi ke `web-bridge-<remote>.log` **tepat 2 detik SETELAH pesan
@@ -119,11 +119,23 @@ PERTAMA dikirim** — SEBELUM ada refresh (F5).
 - Bila nanti perlu refresh, **BUKA URL itu kembali** sebagai pengganti F5. Refresh
   di homepage justru membuka chat BARU → sesi + jejak hilang → chain LOOP tanpa
   pernah dapat balasan.
+- **Berlaku JUGA untuk analisa gambar (Vision New Chat):** baik kirim URL RAW
+  (`bridge-image-publish`) maupun file lokal via Ctrl+U (`web-dom-chatgpt §5.1`),
+  transport menggunakan `*_new.ts` yang sama → capture URL sesi otomatis jalan
+  (jangan di-handle manual di `bridge-image-analyst`). Ini wajib agar multi-image
+  sequential (bridge-image-analyst §4a) tidak kehilangan jejak sesi antar gambar.
+- **Auto-trigger:** rule ini TERIKAT ke `*_new.ts`, bukan ke command mana pun. Jadi
+  apa pun yang menjalankan `*_new.ts` — termasuk `/colab <vendor> new chat` dan
+  Colab image-analysis New Chat — SUDAH men-trigger capture ini di dalam
+  `sendAndWaitForReply` (SEBELUM waitForStableReply). Tidak perlu dipanggil manual.
 - Implementasi: helper `captureSessionUrl(page, {profile, promptChars})` yang
   `sleep(SESSION_CAPTURE_DELAY_MS=2000)` lalu `logConversation(...)` (mode `send`).
   Delay override via `BRIDGE_SESSION_CAPTURE_DELAY_MS`. Dipanggil di
   `sendAndWaitForReply` SETELAH send, SEBELUM menunggu balasan stabil.
 - `.log` baris ini punya `url` + `convId` → agent/subagent baca untuk reopen.
+- Status lintas-vendor: **SUDAH ada** di ke-4 transport (`gpt` / `claude` / `gemini`
+  / `z` bridge-cdp-*_new.ts) — definisi + pemanggilan di send-path + delay 2s. Tidak
+  perlu di-port lagi; cukup rujuk §4.1 ini.
 
 ---
 
